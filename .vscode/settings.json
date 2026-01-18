@@ -1,0 +1,99 @@
+{
+  // =========================================================
+  // 1. VISUAL & UI CONFIGURATION
+  // =========================================================
+  "workbench.colorTheme": "Catppuccin Macchiato",
+  "workbench.iconTheme": "material-icon-theme",
+  "editor.fontSize": 14,
+  "editor.fontFamily": "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+  "editor.fontLigatures": "'calt', 'ss01', 'ss19', 'ss20', 'liga', 'dlig'",
+
+  // Cursor and Animation
+  "editor.cursorBlinking": "phase",
+  "editor.cursorSmoothCaretAnimation": "on",
+  "editor.smoothScrolling": true,
+
+  // Rendering
+  "editor.minimap.enabled": true,
+  "editor.renderWhitespace": "boundary",
+  "editor.guides.bracketPairs": true,
+  "editor.bracketPairColorization.enabled": true,
+
+  // =========================================================
+  // 2. C# & .NET CORE SETTINGS
+  // =========================================================
+  // Enforces the RGTools solution as the active context
+  "dotnet.defaultSolution": "RGTools.sln",
+
+  // C# Language Server (Roslyn) Inlay Hints configuration.
+  // Provides visual type inference for var, parameters, and implicit objects.
+  "dotnet.inlayHints.enableInlayHintsForImplicitObjectCreation": true,
+  "dotnet.inlayHints.enableInlayHintsForMethodParameters": true,
+  "dotnet.inlayHints.enableInlayHintsForParameters": true,
+  "dotnet.inlayHints.enableInlayHintsForTypes": true,
+
+  // Formatting Rules (Using C# Dev Kit engine)
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
+    }
+  },
+
+  // =========================================================
+  // 3. PROJECT HYGIENE (ZERO WASTE)
+  // =========================================================
+  // Exclude build artifacts and system folders from the file explorer
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/.git": true,
+    "**/.vscode": false // Visible: Workspace configuration
+  },
+
+  // Exclude artifacts from global search to improve performance
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.git": true,
+    "**/.vs": true,
+    "**/.vscode": true
+  },
+
+  // =========================================================
+  // 4. TERMINAL CONFIGURATION (NATIVE WINDOWS)
+  // =========================================================
+  // Force PowerShell Core for .NET CLI operations
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.fontFamily": "'Cascadia Code', 'Fira Code', monospace",
+  "terminal.integrated.cursorStyle": "block",
+
+  // =========================================================
+  // 5. GIT & SCALABILITY
+  // =========================================================
+  "git.enableSmartCommit": true,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "diffEditor.renderSideBySide": true,
+
+  // File Standards
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.eol": "\n",
+
+  // Spell Checker Dictionary (Project Specific)
+  "cSpell.language": "en,es",
+  "cSpell.enabled": true,
+  "cSpell.words": [
+    "RGTools",
+    "rgdevment",
+    "wubuntu",
+    "Forticlient",
+    "Sodimac",
+    "WPF",
+    "H.NotifyIcon"
+  ]
+}

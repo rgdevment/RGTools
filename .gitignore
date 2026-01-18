@@ -1,0 +1,23 @@
+## Core .NET
+[Bb]in/
+[Oo]bj/
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.user
+*.suo
+*.userprefs
+
+## Windows & System
+Thumbs.db
+Desktop.ini
+
+## Logs & Crash Dumps
+*.log
+*.dmp
+
+/publish/
+/releases/
