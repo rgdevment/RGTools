@@ -64,7 +64,5 @@
   "files.eol": "\n",
 
   // --- SPELL CHECKER (Requires 'Code Spell Checker' extension) ---
-  "cSpell.language": "en,es",
-  "cSpell.enabled": true,
-  "cSpell.words": ["RGTools", "rgdevment", "H.NotifyIcon", "Appsettings", "Viewmodel"]
+  "cSpell.enabled": false
 }

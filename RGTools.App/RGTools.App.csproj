@@ -10,6 +10,9 @@
     <RootNamespace>RGTools.App</RootNamespace>
     <Product>RGTools Suite</Product>
     <Authors>rgdevment</Authors>
+    <!-- Embed manifest for Debug and Release so the built exe requests elevation -->
+    <ApplicationManifest Condition="'$(Configuration)' == 'Release'">app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(Configuration)' == 'Debug'">app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
