@@ -1,10 +1,12 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using System.Security.Principal;
 using H.NotifyIcon;
 using RGTools.App.Core;
 using RGTools.App.ViewModels;
 using RGTools.App.Views;
+using static RGTools.App.Core.LogService;
 
 namespace RGTools.App;
 
@@ -21,6 +23,8 @@ public partial class App : Application
   {
     base.OnStartup(e);
 
+    LogService.Initialize();
+    LogService.Log($"App started (Admin: {IsAdministrator()})");
 
     await _configService.LoadAsync();
 
@@ -78,6 +82,13 @@ public partial class App : Application
   {
     _trayIcon?.Dispose();
     _dnsGuardian.Stop();
+    LogService.Shutdown();
     base.OnExit(e);
+  }
+
+  private static bool IsAdministrator()
+  {
+    using var identity = WindowsIdentity.GetCurrent();
+    return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
   }
 }

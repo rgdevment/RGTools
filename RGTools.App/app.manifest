@@ -9,7 +9,6 @@
 
   <description>RGTools Suite</description>
 
-  <!-- Solicitar permisos de administrador -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges>
@@ -18,7 +17,6 @@
     </security>
   </trustInfo>
 
-  <!-- Compatibilidad con Windows -->
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
       <supportedOS Id="{8e0f7a12-bfb5-4649-92eb-c2d3a9ec6c1c}"/> <!-- Windows 10/11 -->
