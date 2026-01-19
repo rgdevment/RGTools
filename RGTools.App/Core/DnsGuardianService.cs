@@ -1,31 +1,28 @@
 using System.Diagnostics;
 using System.Management;
-using System.Net;
 using System.Net.NetworkInformation;
-using Microsoft.Win32;
+using System.Net.Sockets;
 
 namespace RGTools.App.Core;
 
 public class DnsGuardianService
 {
-  private readonly string _expectedDns = "192.168.50.100";
-  private readonly string _expectedDoH = "https://query";
-  private readonly int _checkIntervalMinutes = 5;
+  private const string TargetDns = "192.168.50.100";
+  private const int CheckIntervalMinutes = 5;
+
   private CancellationTokenSource? _cts;
   private ManagementEventWatcher? _networkWatcher;
-  private string? _lastAnomalousDns;
+  private readonly SemaphoreSlim _lock = new(1, 1);
 
   public void Start()
   {
     if (_cts != null) return;
-
     _cts = new CancellationTokenSource();
 
-    StartNetworkChangeListener(); //Por eventos
+    StartWmiListener();
+    Task.Run(() => LoopAsync(_cts.Token));
 
-    Task.Run(() => LoopAsync(_cts.Token)); //Solo por respaldo (5 minutos)
-
-    Debug.WriteLine("[Guardian] Started.");
+    LogService.Log("[Guardian] Service Started.");
   }
 
   public void Stop()
@@ -40,26 +37,28 @@ public class DnsGuardianService
     _networkWatcher?.Dispose();
     _networkWatcher = null;
 
-    Debug.WriteLine("[Guardian] Stopped.");
+    LogService.Log("[Guardian] Service Stopped.");
   }
 
-  private void StartNetworkChangeListener()
+  private void StartWmiListener()
   {
     try
     {
       var query = new WqlEventQuery("__InstanceModificationEvent",
-        TimeSpan.FromSeconds(2),
-        "TargetInstance ISA 'Win32_NetworkAdapterConfiguration'");
+          TimeSpan.FromSeconds(2),
+          "TargetInstance ISA 'Win32_NetworkAdapterConfiguration'");
 
       _networkWatcher = new ManagementEventWatcher(query);
-      _networkWatcher.EventArrived += async (s, e) => await CheckDnsAsync();
+      _networkWatcher.EventArrived += async (s, e) =>
+      {
+        await Task.Delay(2000);
+        await CheckAndRestoreDnsAsync("WmiEvent");
+      };
       _networkWatcher.Start();
-
-      Debug.WriteLine("[Guardian] Network change listener enabled.");
     }
     catch (Exception ex)
     {
-      Debug.WriteLine($"[Guardian] Failed to start network listener: {ex.Message}");
+      LogService.Log($"[Guardian] WMI Error: {ex.Message}");
     }
   }
 
@@ -67,114 +66,101 @@ public class DnsGuardianService
   {
     try
     {
-      await CheckDnsAsync();
+      await CheckAndRestoreDnsAsync("Startup");
 
-      while (!token.IsCancellationRequested)
+      using var timer = new PeriodicTimer(TimeSpan.FromMinutes(CheckIntervalMinutes));
+      while (await timer.WaitForNextTickAsync(token))
       {
-        await Task.Delay(TimeSpan.FromMinutes(_checkIntervalMinutes), token);
-        await CheckDnsAsync();
+        await CheckAndRestoreDnsAsync("Timer");
       }
     }
-    catch (OperationCanceledException)
-    {
-      Debug.WriteLine("[Guardian] Cancellation requested, exiting loop.");
-    }
-    catch (Exception ex)
-    {
-      Debug.WriteLine($"[Guardian] CRITICAL ERROR: {ex.Message}");
-    }
+    catch (OperationCanceledException) { }
   }
 
-  private async Task CheckDnsAsync()
+  private async Task CheckAndRestoreDnsAsync(string source)
   {
+    if (!await _lock.WaitAsync(0)) return;
+
+    LogService.Log($"[Guardian] ({source}) Checking DNS settings...");
+
     try
     {
-      var primaryDns = await GetPrimaryPhysicalDnsAsync();
-      var dnsIP = primaryDns?.First().ToString() ?? null;
+      var nic = GetPhysicalInterface();
+      if (nic == null) return;
 
-      var dohTemplate = GetDohTemplateForDns(dnsIP);
-      LogService.Log($"[Guardian] DoH Template for DNS {dnsIP}: {dohTemplate}");
+      var ipProps = nic.GetIPProperties();
+      var dnsAddresses = ipProps.DnsAddresses
+          .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+          .Select(ip => ip.ToString())
+          .ToList();
 
-      if (string.IsNullOrEmpty(dnsIP))
+      string currentDns = dnsAddresses.FirstOrDefault() ?? string.Empty;
+
+      if (currentDns != TargetDns)
       {
-        Debug.WriteLine("[Guardian] No DNS detected on physical interfaces.");
-        return;
-      }
+        LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Found: '{currentDns}'. Restoring to {TargetDns}...");
 
-      if (dnsIP != _expectedDns)
-      {
-        _lastAnomalousDns = dnsIP;
-        Debug.WriteLine($"[Guardian] ⚠️ DNS CHANGED! Expected: {_expectedDns}, Found: {dnsIP}");
+        await RestoreDnsIpAsync(nic.Name);
       }
       else
       {
-        Debug.WriteLine($"[Guardian] ✓ DNS OK: {dnsIP}");
+        // Optional: Log only on debug to avoid noise
+        // Debug.WriteLine($"[Guardian] ({source}) Status Green.");
       }
     }
     catch (Exception ex)
     {
-      Debug.WriteLine($"[Guardian] Error checking DNS: {ex.Message}");
+      LogService.Log($"[Guardian] Error: {ex.Message}");
+    }
+    finally
+    {
+      _lock.Release();
     }
   }
 
-  private async Task<List<IPAddress>?> GetPrimaryPhysicalDnsAsync()
+  private async Task RestoreDnsIpAsync(string interfaceName)
   {
-    return await Task.Run(() =>
-    {
-      try
-      {
-        var interfaces = NetworkInterface.GetAllNetworkInterfaces()
-          .Where(ni =>
-            ni.OperationalStatus == OperationalStatus.Up &&
-            ni.NetworkInterfaceType is
-              NetworkInterfaceType.Ethernet or
-              NetworkInterfaceType.Wireless80211 &&
-            !ni.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
-            !ni.Description.Contains("VMware", StringComparison.OrdinalIgnoreCase) &&
-            !ni.Description.Contains("VirtualBox", StringComparison.OrdinalIgnoreCase) &&
-            !ni.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) &&
-            !ni.Description.Contains("Docker", StringComparison.OrdinalIgnoreCase) &&
-            !ni.Description.Contains("FortiClient", StringComparison.OrdinalIgnoreCase))
-          .OrderByDescending(ni => ni.Speed);
+    // Force static DNS IP (Native command, efficient and reliable)
+    await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
 
-        foreach (var iface in interfaces)
-        {
-          var dnsAddresses = iface.GetIPProperties().DnsAddresses
-            .Where(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-            .ToList();
-
-          if (dnsAddresses.Any())
-          {
-            return dnsAddresses;
-          }
-        }
-
-        return null;
-      }
-      catch (Exception ex)
-      {
-        Debug.WriteLine($"[Guardian] Error getting DNS: {ex.Message}");
-        return null;
-      }
-    });
+    LogService.Log($"[Guardian] DNS restored for interface '{interfaceName}'.");
   }
 
-  public string? GetLastAnomalousDns() => _lastAnomalousDns;
-
-  private static string? GetDohTemplateForDns(string? dnsIp)
+  private NetworkInterface? GetPhysicalInterface()
   {
-    if (string.IsNullOrEmpty(dnsIp)) return null;
+    return NetworkInterface.GetAllNetworkInterfaces()
+        .Where(ni =>
+            ni.OperationalStatus == OperationalStatus.Up &&
+            (ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
+             ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) &&
+            ni.GetIPProperties().GatewayAddresses.Count > 0 &&
+            ni.NetworkInterfaceType != NetworkInterfaceType.Loopback
+        )
+        .OrderByDescending(ni => ni.Speed)
+        .FirstOrDefault();
+  }
+
+  private async Task RunProcessAsync(string fileName, string args)
+  {
+    if (!AdminHelper.IsAdministrator())
+    {
+      LogService.Log($"[Sim] {fileName} {args}");
+      return;
+    }
 
     try
     {
-      const string basePath = @"SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DohWellKnownServers";
-      using var key = Registry.LocalMachine.OpenSubKey($@"{basePath}\{dnsIp}");
-      return key?.GetValue("Template") as string;
+      var psi = new ProcessStartInfo(fileName, args)
+      {
+        CreateNoWindow = true,
+        UseShellExecute = false
+      };
+      using var p = Process.Start(psi);
+      if (p != null) await p.WaitForExitAsync();
     }
     catch (Exception ex)
     {
-      Debug.WriteLine($"[Guardian] Error getting DoH template: {ex.Message}");
-      return null;
+      LogService.Log($"[Guardian] Process Error: {ex.Message}");
     }
   }
 }
