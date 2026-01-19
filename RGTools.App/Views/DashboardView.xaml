@@ -149,12 +149,12 @@
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" Padding="0,0,10,0">
                 <StackPanel>
-                    <CheckBox x:Name="ChkDns" Click="ChkDns_Click" Style="{StaticResource ToggleSwitch}" Content="Proteger DNS" IsChecked="True" Margin="0,0,0,15"/>
+                    <CheckBox x:Name="ChkDns" Click="ChkDns_Click" Style="{StaticResource ToggleSwitch}" Content="Encender Guardian DNS" IsChecked="True" Margin="0,0,0,15"/>
                 </StackPanel>
             </ScrollViewer>
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
-                <Button Content="Close Window" Click="BtnClose_Click" Style="{StaticResource ActionButton}" Width="120"/>
+                <Button Content="Aplicar y Cerrar" Click="BtnClose_Click" Style="{StaticResource ActionButton}" Width="120"/>
             </StackPanel>
 
         </Grid>
