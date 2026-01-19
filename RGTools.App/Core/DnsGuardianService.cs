@@ -1,13 +1,16 @@
 using System.Diagnostics;
 using System.Management;
+using System.Net;
 using System.Net.NetworkInformation;
+using Microsoft.Win32;
 
 namespace RGTools.App.Core;
 
 public class DnsGuardianService
 {
   private readonly string _expectedDns = "192.168.50.100";
-  private readonly int _checkIntervalMinutes = 10;
+  private readonly string _expectedDoH = "https://query";
+  private readonly int _checkIntervalMinutes = 5;
   private CancellationTokenSource? _cts;
   private ManagementEventWatcher? _networkWatcher;
   private string? _lastAnomalousDns;
@@ -20,7 +23,7 @@ public class DnsGuardianService
 
     StartNetworkChangeListener(); //Por eventos
 
-    Task.Run(() => LoopAsync(_cts.Token)); //Solo por respaldo (10 minutos)
+    Task.Run(() => LoopAsync(_cts.Token)); //Solo por respaldo (5 minutos)
 
     Debug.WriteLine("[Guardian] Started.");
   }
@@ -87,21 +90,25 @@ public class DnsGuardianService
     try
     {
       var primaryDns = await GetPrimaryPhysicalDnsAsync();
+      var dnsIP = primaryDns?.First().ToString() ?? null;
 
-      if (string.IsNullOrEmpty(primaryDns))
+      var dohTemplate = GetDohTemplateForDns(dnsIP);
+      LogService.Log($"[Guardian] DoH Template for DNS {dnsIP}: {dohTemplate}");
+
+      if (string.IsNullOrEmpty(dnsIP))
       {
         Debug.WriteLine("[Guardian] No DNS detected on physical interfaces.");
         return;
       }
 
-      if (primaryDns != _expectedDns)
+      if (dnsIP != _expectedDns)
       {
-        _lastAnomalousDns = primaryDns;
-        Debug.WriteLine($"[Guardian] ⚠️ DNS CHANGED! Expected: {_expectedDns}, Found: {primaryDns}");
+        _lastAnomalousDns = dnsIP;
+        Debug.WriteLine($"[Guardian] ⚠️ DNS CHANGED! Expected: {_expectedDns}, Found: {dnsIP}");
       }
       else
       {
-        Debug.WriteLine($"[Guardian] ✓ DNS OK: {primaryDns}");
+        Debug.WriteLine($"[Guardian] ✓ DNS OK: {dnsIP}");
       }
     }
     catch (Exception ex)
@@ -110,7 +117,7 @@ public class DnsGuardianService
     }
   }
 
-  private async Task<string?> GetPrimaryPhysicalDnsAsync()
+  private async Task<List<IPAddress>?> GetPrimaryPhysicalDnsAsync()
   {
     return await Task.Run(() =>
     {
@@ -138,7 +145,7 @@ public class DnsGuardianService
 
           if (dnsAddresses.Any())
           {
-            return dnsAddresses.First().ToString();
+            return dnsAddresses;
           }
         }
 
@@ -153,4 +160,21 @@ public class DnsGuardianService
   }
 
   public string? GetLastAnomalousDns() => _lastAnomalousDns;
+
+  private static string? GetDohTemplateForDns(string? dnsIp)
+  {
+    if (string.IsNullOrEmpty(dnsIp)) return null;
+
+    try
+    {
+      const string basePath = @"SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DohWellKnownServers";
+      using var key = Registry.LocalMachine.OpenSubKey($@"{basePath}\{dnsIp}");
+      return key?.GetValue("Template") as string;
+    }
+    catch (Exception ex)
+    {
+      Debug.WriteLine($"[Guardian] Error getting DoH template: {ex.Message}");
+      return null;
+    }
+  }
 }
