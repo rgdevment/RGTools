@@ -81,7 +81,7 @@ public class DnsGuardianService
   {
     if (!await _lock.WaitAsync(0)) return;
 
-    LogService.Log($"[Guardian] ({source}) Checking DNS settings...");
+    Debug.WriteLine($"[Guardian] ({source}) Checking DNS settings...");
 
     try
     {
@@ -104,8 +104,7 @@ public class DnsGuardianService
       }
       else
       {
-        // Optional: Log only on debug to avoid noise
-        // Debug.WriteLine($"[Guardian] ({source}) Status Green.");
+        Debug.WriteLine($"[Guardian] ({source}) Status Green.");
       }
     }
     catch (Exception ex)
