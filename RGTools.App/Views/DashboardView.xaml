@@ -4,6 +4,7 @@
         Title="RGTools Dashboard" Height="700" Width="1000"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Icon="pack://application:,,,/RGTools.App;component/app.ico"
         ResizeMode="CanResize">
 
     <Window.Resources>
@@ -133,15 +134,14 @@
 
     </Window.Resources>
 
-    <Border Background="{StaticResource BgDark}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
-        <Grid Margin="20">
+    <Border Background="#1E1E1E" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
+                <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    <RowDefinition Height="Auto"/> </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="RGTOOLS UI KIT" Foreground="White" FontSize="20" FontWeight="Bold"/>
-                    <TextBlock Text="Catálogo de Componentes 2026" Foreground="#666" FontSize="12"/>
+                    <TextBlock Text="RGTOOLS" Foreground="White" FontSize="20" FontWeight="Bold"/>
                 </StackPanel>
                 <Button x:Name="BtnTopClose" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top"
                         Background="Transparent" Foreground="#666" BorderThickness="0" FontSize="16" Click="BtnClose_Click"/>
@@ -149,108 +149,7 @@
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" Padding="0,0,10,0">
                 <StackPanel>
-
-                    <TextBlock Text="1. STATUS ACTIONS (LED INDICATORS)" Style="{StaticResource HeaderLabel}"/>
-                    <Border Style="{StaticResource CardPanel}">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="VPN Service" VerticalAlignment="Center" Foreground="White"/>
-
-                                <Button Style="{StaticResource ActionButton}" Width="140">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="8" Height="8" Fill="{StaticResource StatusRed}" Margin="0,0,8,0"/>
-                                        <TextBlock Text="Disconnected"/>
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-
-                            <Separator Style="{StaticResource ModernSeparator}"/>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="DNS Guardian" VerticalAlignment="Center" Foreground="White"/>
-
-                                <Button Style="{StaticResource ActionButton}" Width="140" BorderBrush="{StaticResource StatusGreen}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="8" Height="8" Fill="{StaticResource StatusGreen}" Margin="0,0,8,0">
-                                            <Ellipse.Effect>
-                                                <DropShadowEffect Color="#4CC94C" BlurRadius="6" ShadowDepth="0"/>
-                                            </Ellipse.Effect>
-                                        </Ellipse>
-                                        <TextBlock Text="Active"/>
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-
-                    <TextBlock Text="2. MODERN TOGGLES" Style="{StaticResource HeaderLabel}"/>
-                    <Border Style="{StaticResource CardPanel}">
-                        <StackPanel>
-                            <CheckBox Style="{StaticResource ToggleSwitch}" Content="Start minimized to Tray" IsChecked="True" Margin="0,0,0,15"/>
-                            <CheckBox Style="{StaticResource ToggleSwitch}" Content="Enable Auto-Updates" IsChecked="False" Margin="0,0,0,15"/>
-
-                            <CheckBox Style="{StaticResource ToggleSwitch}" Content="Developer Mode (Locked)" IsEnabled="False" Opacity="0.5"/>
-                        </StackPanel>
-                    </Border>
-
-
-                    <TextBlock Text="3. COMMAND BUTTONS" Style="{StaticResource HeaderLabel}"/>
-                    <Border Style="{StaticResource CardPanel}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="15"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Button Grid.Column="0" Style="{StaticResource PrimaryButton}" Content="Run Scan Now" Height="35"/>
-
-                            <Button Grid.Column="2" Style="{StaticResource DangerButton}" Content="Kill All Processes" Height="35"/>
-                        </Grid>
-                    </Border>
-
-
-                    <TextBlock Text="4. DATA INPUTS" Style="{StaticResource HeaderLabel}"/>
-                    <Border Style="{StaticResource CardPanel}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="15"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Row="0" Grid.Column="0">
-                                <TextBlock Text="Network Interface" Foreground="#888" Margin="0,0,0,5"/>
-                                <ComboBox Style="{StaticResource DarkCombo}" SelectedIndex="0">
-                                    <ComboBoxItem Content="Ethernet 1 (Intel)"/>
-                                    <ComboBoxItem Content="Wi-Fi 6 (AX200)"/>
-                                </ComboBox>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="0" Grid.Column="2">
-                                <TextBlock Text="Log Level" Foreground="#888" Margin="0,0,0,5"/>
-                                <ComboBox Style="{StaticResource DarkCombo}" SelectedIndex="1">
-                                    <ComboBoxItem Content="Verbose"/>
-                                    <ComboBoxItem Content="Info Only"/>
-                                    <ComboBoxItem Content="Errors"/>
-                                </ComboBox>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
+                    <CheckBox x:Name="ChkDns" Click="ChkDns_Click" Style="{StaticResource ToggleSwitch}" Content="Proteger DNS" IsChecked="True" Margin="0,0,0,15"/>
                 </StackPanel>
             </ScrollViewer>
 

@@ -2,30 +2,35 @@
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using H.NotifyIcon;
+using RGTools.App.Core;
 using RGTools.App.ViewModels;
 using RGTools.App.Views;
 
 namespace RGTools.App;
 
-/// <summary>
-/// Application entry point. Orchestrates the Tray Icon and Window lifecycle.
-/// </summary>
 public partial class App : Application
 {
+  private readonly ConfigService _configService = new();
+  private readonly DnsGuardianService _dnsGuardian = new();
+
   private TaskbarIcon? _trayIcon;
   private TrayViewModel? _viewModel;
-
-  // Tracks the active window instance to prevent duplicates.
   private DashboardView? _dashboardWindow;
 
-  protected override void OnStartup(StartupEventArgs e)
+  protected override async void OnStartup(StartupEventArgs e)
   {
     base.OnStartup(e);
 
-    // 1. Initialize ViewModel with the OpenWindow action injection
+
+    await _configService.LoadAsync();
+
+    if (_configService.Current.DnsGuardianEnabled)
+    {
+      _dnsGuardian.Start();
+    }
+
     _viewModel = new TrayViewModel(OpenDashboardWindow);
 
-    // 2. Initialize TrayIcon
     _trayIcon = new TaskbarIcon
     {
       ToolTipText = "RGTools",
@@ -35,32 +40,12 @@ public partial class App : Application
       DoubleClickCommand = _viewModel.OpenDashboardCommand
     };
 
-    // 3. Build Context Menu
+    // Menú Contextual Simple
     var contextMenu = new ContextMenu();
-
-    contextMenu.Items.Add(new MenuItem
-    {
-      Header = "RGTools System",
-      IsEnabled = false,
-      FontWeight = FontWeights.Bold
-    });
-
-    contextMenu.Items.Add(new Separator());
-
-    // Dashboard Item
-    // Note: Using explicit binding or click event here relies on the Command execution from ViewModel.
-    var dashItem = new MenuItem
-    {
-      Header = "Open Dashboard",
-      FontWeight = FontWeights.SemiBold
-    };
-    // Explicitly routing the click to the Action for stability in headless mode
+    var dashItem = new MenuItem { Header = "Open Dashboard", FontWeight = FontWeights.Bold };
     dashItem.Click += (s, args) => _viewModel.OpenDashboardCommand.Execute(null);
     contextMenu.Items.Add(dashItem);
 
-    contextMenu.Items.Add(new Separator());
-
-    // Exit Item
     var exitItem = new MenuItem { Header = "Exit Core" };
     exitItem.Click += (s, args) => _viewModel.CloseCommand.Execute(null);
     contextMenu.Items.Add(exitItem);
@@ -69,21 +54,19 @@ public partial class App : Application
     _trayIcon.ForceCreate();
   }
 
-  /// <summary>
-  /// Lifecycle Manager: Creates the window if null, or activates it if already open.
-  /// Ensures "Zero Waste" by allowing the GC to collect the window when closed.
-  /// </summary>
   private void OpenDashboardWindow()
   {
     if (_dashboardWindow == null)
     {
-      _dashboardWindow = new DashboardView();
-      _dashboardWindow.Closed += (s, e) => _dashboardWindow = null; // Reset reference on close
+      _dashboardWindow = new DashboardView(_configService, _dnsGuardian);
+
+      _dashboardWindow.Closed += (s, e) => _dashboardWindow = null;
+
       _dashboardWindow.Show();
+      _dashboardWindow.Activate();
     }
     else
     {
-      // If minimized or behind other windows, bring it to front
       if (_dashboardWindow.WindowState == WindowState.Minimized)
         _dashboardWindow.WindowState = WindowState.Normal;
 
@@ -94,6 +77,7 @@ public partial class App : Application
   protected override void OnExit(ExitEventArgs e)
   {
     _trayIcon?.Dispose();
+    _dnsGuardian.Stop();
     base.OnExit(e);
   }
 }
