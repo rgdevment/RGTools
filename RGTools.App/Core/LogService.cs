@@ -1,78 +1,97 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 
 namespace RGTools.App.Core;
 
 public static class LogService
 {
-    private static readonly string LogPath = Path.Combine(
+    private static readonly string LogDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RGTools",
-        "logs",
-        "rgtools.log");
-    private static readonly object _lockObj = new();
-    private static bool _initialized;
+        "logs");
+
+    private static readonly string LogPath = Path.Combine(LogDir, "rgtools.log");
+    private static readonly string BackupPath = Path.Combine(LogDir, "rgtools.bak"); // Archivo de respaldo
+
+    // Lock ligero para evitar conflictos si múltiples hilos loguean a la vez
+    private static readonly Lock _lockObj = new();
 
     public static void Initialize()
     {
         try
         {
-            if (_initialized) return;
+            if (!Directory.Exists(LogDir))
+                Directory.CreateDirectory(LogDir);
 
-            var dir = Path.GetDirectoryName(LogPath)!;
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
+            RotateLogsIfNeeded();
 
-            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > 2_000_000)
-            {
-                File.Delete(LogPath);
-            }
-
-            Trace.Listeners.Clear();
-            var fileListener = new TextWriterTraceListener(LogPath, "LogFile");
-            Trace.Listeners.Add(fileListener);
-            Trace.Listeners.Add(new DefaultTraceListener());
-            Trace.AutoFlush = true;
-
-            Log($"=== RGTools Started ===");
-            _initialized = true;
+            Log("=== RGTools Service Started ===");
         }
         catch (Exception ex)
         {
-            try
-            {
-                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                var logLine = $"[{timestamp}] [LogService] Failed to initialize: {ex.Message}";
-                File.AppendAllText(LogPath, logLine + Environment.NewLine);
-            }
-            catch { }
+            // Fallback de emergencia a la consola de debug si falla el disco
+            Debug.WriteLine($"[CRITICAL] LogService init failed: {ex.Message}");
         }
     }
 
-    public static void Log(string message)
+    public static void Log(string message, Exception? ex = null)
     {
+        // Usamos la nueva característica 'Lock' de .NET 9/10 que es más eficiente que 'object'
         lock (_lockObj)
         {
             try
             {
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                var logLine = $"[{timestamp}] {message}";
-                Trace.WriteLine(logLine);
+                var sb = new StringBuilder();
+
+                sb.Append($"[{timestamp}] {message}");
+
+                if (ex != null)
+                {
+                    sb.AppendLine();
+                    sb.Append($"   >>> Error: {ex.Message}");
+                    // Opcional: StackTrace solo si es necesario, consume string alloc
+                    // sb.Append($"\n   {ex.StackTrace}");
+                }
+
+                var finalLine = sb.ToString();
+
+                // 1. Escritura en Disco (Robusta, funciona siempre)
+                // AppendAllText abre, escribe y cierra. Es más lento que un stream abierto,
+                // pero mucho más seguro para una app que puede ser matada abruptamente.
+                // Dado el volumen bajo de logs, el impacto en CPU es despreciable.
+                File.AppendAllText(LogPath, finalLine + Environment.NewLine);
+
+                // 2. Escritura en Output de VS (Para desarrollo)
+                Debug.WriteLine(finalLine);
             }
-            catch { }
+            catch
+            {
+                // Silencio total. El logger nunca debe tumbar la app.
+            }
         }
     }
 
-    public static void Shutdown()
+    private static void RotateLogsIfNeeded()
     {
         try
         {
-            Trace.Flush();
+            var info = new FileInfo(LogPath);
+            // Limite de 2MB
+            if (info.Exists && info.Length > 2 * 1024 * 1024)
+            {
+                // Si existe un backup anterior, lo borramos
+                if (File.Exists(BackupPath))
+                    File.Delete(BackupPath);
+
+                // Movemos el log actual a backup (rotación simple)
+                File.Move(LogPath, BackupPath);
+            }
         }
-        catch { }
+        catch { /* Ignorar errores de rotación */ }
     }
 
+    // Helpers rápidos
     public static string GetLogPath() => LogPath;
 }
