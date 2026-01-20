@@ -10,6 +10,8 @@ public class DnsGuardianService : IDisposable
   private const string TargetDns = "192.168.50.100";
   private const int CheckIntervalMinutes = 5;
 
+  private static readonly string? TargetDohTemplate = Environment.GetEnvironmentVariable("PERSONAL_DOH", EnvironmentVariableTarget.Machine);
+
   private CancellationTokenSource? _cts;
   private ManagementEventWatcher? _networkWatcher;
   private readonly SemaphoreSlim _lock = new(1, 1);
@@ -97,11 +99,9 @@ public class DnsGuardianService : IDisposable
           .Select(ip => ip.ToString())
           .ToList();
 
-      string currentDns = dnsAddresses.FirstOrDefault() ?? string.Empty;
-
-      if (currentDns != TargetDns)
+      if (dnsAddresses.FirstOrDefault() != TargetDns)
       {
-        LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Found: '{currentDns}'. Restoring to {TargetDns}...");
+        LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Restoring {TargetDns}...");
         await RestoreDnsIpAsync(nic.Name);
       }
     }
@@ -117,8 +117,37 @@ public class DnsGuardianService : IDisposable
 
   private async Task RestoreDnsIpAsync(string interfaceName)
   {
+    // Future-self: Critical - restore IP immediately
     await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
-    LogService.Log($"[Guardian] DNS restored for interface '{interfaceName}'.");
+
+    if (!string.IsNullOrEmpty(TargetDohTemplate))
+    {
+      string psScript = """
+                $dns = '[DNS]';
+                $template = '[TEMPLATE]';
+                $alias = '[INTERFACE]';
+
+                # Register DoH
+                if (-not (Get-DnsClientDohServerAddress -ServerAddress $dns -ErrorAction SilentlyContinue)) {
+                    Add-DnsClientDohServerAddress -ServerAddress $dns -DohTemplate $template -AllowFallbackToUdp $true -AutoUpgrade $true
+                } else {
+                    Set-DnsClientDohServerAddress -ServerAddress $dns -DohTemplate $template -AllowFallbackToUdp $true -AutoUpgrade $true
+                }
+
+                # Force Windows to re-evaluate the interface DNS
+                Set-DnsClientServerAddress -InterfaceAlias $alias -ServerAddresses $dns
+
+                # Wake up the DoH client by performing a test resolution
+                Clear-DnsClientCache
+                Resolve-DnsName google.com -Server $dns -Type A -DnsOnly -ErrorAction SilentlyContinue
+                """
+          .Replace("[DNS]", TargetDns)
+          .Replace("[TEMPLATE]", TargetDohTemplate)
+          .Replace("[INTERFACE]", interfaceName);
+
+      await RunProcessAsync("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"");
+      LogService.Log($"[Guardian] DNS + DoH Restore attempted for '{interfaceName}'.");
+    }
   }
 
   private NetworkInterface? GetPhysicalInterface()
@@ -139,13 +168,13 @@ public class DnsGuardianService : IDisposable
   {
     try
     {
-      var psi = new ProcessStartInfo(fileName, args)
+      ProcessStartInfo psi = new(fileName, args)
       {
         CreateNoWindow = true,
         UseShellExecute = false
       };
 
-      using var p = Process.Start(psi);
+      using Process? p = Process.Start(psi);
       if (p != null) await p.WaitForExitAsync();
     }
     catch (Exception ex)
