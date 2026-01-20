@@ -170,6 +170,13 @@
                         Visibility="Collapsed"
                         Foreground="{StaticResource StatusOn}"/>
 
+                <Button x:Name="BtnJumpbox"
+                        Content="Crear Túnel DB"
+                        Style="{StaticResource ActionButton}"
+                        Tag="🖧"
+                        Visibility="Collapsed"
+                        Click="BtnJumpbox_Click"/>
+
                 <Button x:Name="BtnCopilot" Content="Meet Copilot AI" Style="{StaticResource ActionButton}" Tag="✦" Click="BtnCopilot_Click">
                     <Button.ContextMenu>
                         <ContextMenu>

@@ -10,6 +10,7 @@ public partial class DashboardView : Window
   private readonly DnsGuardianService _guardian;
   private readonly VpnService _vpnService;
   private readonly CopilotService _copilotService;
+  private readonly JumpboxService _jumpboxService;
 
   public DashboardView(ConfigService config, DnsGuardianService guardian, VpnService vpnService)
   {
@@ -27,6 +28,9 @@ public partial class DashboardView : Window
 
       _vpnService.StatusChanged += OnVpnStatusChanged;
       _vpnService.ConnectionChanged += OnVpnConnectionChanged;
+
+      _jumpboxService = new JumpboxService(_config);
+      _vpnService.StatusChanged += OnVpnStatusChanged;
 
       ChkStartup.IsChecked = _config.Current.StartWithWindows;
 
@@ -96,7 +100,35 @@ public partial class DashboardView : Window
     BtnVpn.Tag = isActive ? "ON" : "OFF";
     BtnVpn.IsEnabled = true;
 
+    Height = isActive ? 660 : 600;
+
+    BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+
     if (!isActive) TxtVpnStatus.Visibility = Visibility.Collapsed;
+  }
+
+  private async void BtnJumpbox_Click(object sender, RoutedEventArgs e)
+  {
+    LogService.Log("[UI] Launching Database Tunnel via WSL2...");
+
+    BtnJumpbox.IsEnabled = false;
+    var originalContent = BtnJumpbox.Content;
+    BtnJumpbox.Content = "Validando...";
+
+    try
+    {
+      await _jumpboxService.LaunchAsync();
+    }
+    catch (Exception ex)
+    {
+      LogService.Log("[UI-JUMPBOX] Failed to trigger launch", ex);
+      MessageBox.Show("Error al intentar conectar con WSL2.");
+    }
+    finally
+    {
+      BtnJumpbox.Content = originalContent;
+      BtnJumpbox.IsEnabled = true;
+    }
   }
 
   private async void BtnVpn_Click(object sender, RoutedEventArgs e)

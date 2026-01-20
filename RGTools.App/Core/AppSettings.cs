@@ -7,6 +7,7 @@ public record AppSettings
     public bool DnsGuardianEnabled { get; init; } = true;
     public bool StartWithWindows { get; init; } = false;
     public string? CopilotFolderPath { get; init; }
+    public string? JumboxFolderPath { get; init; }
 }
 
 public record LmStudioResponse(
