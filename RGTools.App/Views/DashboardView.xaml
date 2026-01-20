@@ -115,7 +115,7 @@
                 <TextBlock Text="SERVICIOS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
                 <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
                 <Button x:Name="BtnCopilot" Content="Meet Copilot" Style="{StaticResource StatusButton}" Tag="ON"/>
-                <Button x:Name="BtnWorkOff" Content="Work Off" Style="{StaticResource StatusButton}" Tag="OFF" Foreground="{StaticResource StatusOff}"/>
+                <Button x:Name="BtnWorkOff" Content="Work Off" Style="{StaticResource StatusButton}" Click="BtnWorkOff_Click" Tag="OFF" Foreground="{StaticResource StatusOff}"/>
 
                 <Separator Background="#222" Margin="0,15" Height="1" BorderThickness="0"/>
 

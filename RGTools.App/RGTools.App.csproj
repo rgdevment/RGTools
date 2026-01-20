@@ -11,6 +11,8 @@
     <Product>RGTools Suite</Product>
     <Authors>rgdevment</Authors>
 
+    <Version>0.1.0</Version>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
@@ -20,7 +22,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
-    <PublishTrimmed>false</PublishTrimmed> <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
@@ -28,12 +31,10 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="H.NotifyIcon.Wpf" Version="2.1.0" />
-
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-*" />
     <PackageReference Include="System.Management" Version="10.0.0-*" />
-
-    </ItemGroup>
+  </ItemGroup>
 
   <ItemGroup>
     <Resource Include="app.ico" />

@@ -1,31 +1,39 @@
 {
   "version": "2.0.0",
+  "presentation": {
+    "echo": true,
+    "reveal": "always",
+    "focus": false,
+    "panel": "shared",
+    "showReuseMessage": false,
+    "clear": false
+  },
   "tasks": [
     {
-      "label": "1. Build RGTools",
-      "type": "shell",
-      "command": "dotnet build",
-      "problemMatcher": "$msCompile",
-      "group": "build"
-    },
-    {
-      "label": "2. Run RGTools (Elevated)",
+      "label": "Utils: Kill Processes",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-Command",
-        "Start-Process '${workspaceFolder}/RGTools.App/bin/Debug/net10.0-windows/RGTools.App.exe' -Verb RunAs"
+        "Start-Process taskkill -ArgumentList '/F', '/IM', 'RGTools.App.exe', '/T' -Verb RunAs -Wait -ErrorAction SilentlyContinue"
       ],
-      "dependsOn": "1. Build RGTools",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "panel": "shared"
-      }
+      "presentation": { "reveal": "silent" }
     },
     {
-      "label": "3. Monitor Real-time Logs",
+      "label": "Utils: Nuclear Clean",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "dotnet clean; Remove-Item -Recurse -Force **/bin, **/obj -ErrorAction SilentlyContinue"
+      ],
+      "dependsOn": "Utils: Kill Processes",
+      "presentation": { "reveal": "silent" }
+    },
+    {
+      "label": "Utils: Monitor Logs",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
@@ -33,20 +41,62 @@
         "-Command",
         "Clear-Content \"$env:LOCALAPPDATA\\RGTools\\logs\\rgtools.log\" -ErrorAction SilentlyContinue; Get-Content \"$env:LOCALAPPDATA\\RGTools\\logs\\rgtools.log\" -Wait"
       ],
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "new"
-      }
+      "presentation": { "panel": "new", "focus": true }
     },
     {
-      "label": "🚀 Launch Suite (Full Beta)",
-      "dependsOn": ["2. Run RGTools (Elevated)", "3. Monitor Real-time Logs"],
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      }
+      "label": "Dev: Build",
+      "type": "shell",
+      "command": "dotnet build",
+      "dependsOn": "Utils: Kill Processes",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Dev: Run (Elevated)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Start-Process '${workspaceFolder}/RGTools.App/bin/Debug/net10.0-windows/RGTools.App.exe' -Verb RunAs"
+      ],
+      "dependsOn": "Dev: Build"
+    },
+    {
+      "label": "Release: Publish Single-File",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "RGTools.App/RGTools.App.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "win-x64",
+        "--self-contained",
+        "true",
+        "-p:PublishSingleFile=true",
+        "-p:PublishReadyToRun=true",
+        "-p:PublishTrimmed=false",
+        "-p:IncludeNativeLibrariesForSelfExtract=true"
+      ],
+      "dependsOn": "Utils: Nuclear Clean"
+    },
+    {
+      "label": "🚀 Launch Suite (Debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Dev: Run (Elevated)", "Utils: Monitor Logs"],
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "📦 Full Deploy (Release)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Release: Publish Single-File", "Utils: Open Publish Folder"]
+    },
+    {
+      "label": "Utils: Open Publish Folder",
+      "type": "shell",
+      "command": "explorer.exe",
+      "args": [".\\RGTools.App\\bin\\Release\\net10.0-windows\\win-x64\\publish\\"]
     }
   ]
 }

@@ -1,8 +1,6 @@
-[
-  {
-    "key": "f6",
-    "command": "workbench.action.tasks.runTask",
-    "args": "🚀 Launch Suite (Full Beta)",
-    "when": "workspaceFolderName == 'RGTools'"
-  }
-]
+{
+  "key": "f7",
+  "command": "workbench.action.tasks.runTask",
+  "args": "🚀 Launch Suite (Debug)",
+  "when": "workspaceFolderName == 'RGTools'"
+}

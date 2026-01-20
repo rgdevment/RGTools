@@ -65,6 +65,19 @@ public partial class DashboardView : Window
     }
   }
 
+  private async void BtnWorkOff_Click(object sender, RoutedEventArgs e)
+  {
+    BtnWorkOff.IsEnabled = false;
+    var originalContent = BtnWorkOff.Content;
+    BtnWorkOff.Content = "Cerrando...";
+
+    var workService = new WorkService(_vpnService);
+    await workService.SwitchToWorkOffAsync();
+
+    BtnWorkOff.Content = originalContent;
+    BtnWorkOff.IsEnabled = true;
+  }
+
   private void BtnClose_Click(object sender, RoutedEventArgs e)
   {
     _vpnService.StatusChanged -= OnVpnStatusChanged;
