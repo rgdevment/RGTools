@@ -1,7 +1,7 @@
 <Window x:Class="RGTools.App.Views.DashboardView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="RGTools" Height="480" Width="360"
+        Title="RGTools" Height="520" Width="360"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Icon="pack://application:,,,/app.ico"
@@ -9,34 +9,83 @@
 
     <Window.Resources>
         <SolidColorBrush x:Key="BgDark" Color="#121212"/>
-        <SolidColorBrush x:Key="BgCard" Color="#1E1E1E"/>
-        <SolidColorBrush x:Key="Accent" Color="#007ACC"/>
+        <SolidColorBrush x:Key="Accent" Color="#00A2FF"/>
         <SolidColorBrush x:Key="TextMain" Color="#E1E1E1"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#666666"/>
-        <SolidColorBrush x:Key="StatusOff" Color="#E55050"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#888888"/>
+        <SolidColorBrush x:Key="StatusOff" Color="#FF4B4B"/>
         <SolidColorBrush x:Key="StatusOn" Color="#4CC94C"/>
 
-        <Style x:Key="StatusButton" TargetType="Button">
+        <Style x:Key="DashboardButtonBase" TargetType="Button">
             <Setter Property="Background" Value="#252526"/>
             <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
             <Setter Property="Height" Value="48"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="StatusButton" TargetType="Button" BasedOn="{StaticResource DashboardButtonBase}">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="bdr" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
                             <Grid Margin="15,0">
                                 <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource StatusOff}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{StaticResource StatusOff}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bdr" Property="Background" Value="#2D2D30"/>
+                                <Setter TargetName="bdr" Property="BorderBrush" Value="{StaticResource Accent}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="ON">
                                 <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource StatusOn}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource DashboardButtonBase}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bdr" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
+                            <Grid Margin="15,0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <TextBlock Text="✦" Foreground="{StaticResource Accent}" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="14"/>
+                                    <ContentPresenter VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bdr" Property="Background" Value="#2D2D30"/>
+                                <Setter TargetName="bdr" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DestructiveButton" TargetType="Button" BasedOn="{StaticResource DashboardButtonBase}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bdr" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
+                            <Grid Margin="15,0">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                <TextBlock Text="⏻" Foreground="{StaticResource StatusOff}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="16"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bdr" Property="Background" Value="#2D2D30"/>
+                                <Setter TargetName="bdr" Property="BorderBrush" Value="{StaticResource StatusOff}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -106,30 +155,40 @@
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Margin="0,0,0,25">
-                <TextBlock Text="RGTOOLS" Foreground="White" FontSize="16" FontWeight="SemiBold" Opacity="0.8"/>
+                <TextBlock Text="RGTOOLS" Foreground="White" FontSize="14" FontWeight="Bold" Opacity="0.4"/>
                 <Button x:Name="BtnTopClose" Content="✕" HorizontalAlignment="Right" Background="Transparent"
-                        Foreground="#444" BorderThickness="0" FontSize="14" Click="BtnClose_Click"/>
+                        Foreground="#666" BorderThickness="0" FontSize="14" Click="BtnClose_Click"/>
             </Grid>
 
             <StackPanel Grid.Row="1">
                 <TextBlock Text="SERVICIOS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
-                <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
-                <Button x:Name="BtnCopilot" Content="Meet Copilot" Style="{StaticResource StatusButton}" Tag="ON"/>
-                <Button x:Name="BtnWorkOff" Content="Work Off" Style="{StaticResource StatusButton}" Click="BtnWorkOff_Click" Tag="OFF" Foreground="{StaticResource StatusOff}"/>
 
-                <Separator Background="#222" Margin="0,15" Height="1" BorderThickness="0"/>
+                <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
+
+                <Button x:Name="BtnCopilot" Content="Meet Copilot AI" Style="{StaticResource ActionButton}" Click="BtnCopilot_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Cambiar carpeta de instalación" Click="BtnResetPath_Click"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+
+                <Button x:Name="BtnWorkOff" Content="Finalizar Jornada" Style="{StaticResource DestructiveButton}" Click="BtnWorkOff_Click"/>
+
+                <Separator Background="#222" Margin="0,15,0,20" Height="1" BorderThickness="0"/>
 
                 <TextBlock Text="MINUTAS DE REUNIONES" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
                 <ComboBox x:Name="CmbCopilotOptions" Style="{StaticResource ModernCombo}">
                     <ComboBoxItem Content="Daily Standup" IsSelected="True"/>
                     <ComboBoxItem Content="Weekly Sync"/>
+                    <ComboBoxItem Content="Technical Review"/>
                 </ComboBox>
 
-                <Separator Background="#222" Margin="0,15" Height="1" BorderThickness="0"/>
+                <Separator Background="#222" Margin="0,20,0,20" Height="1" BorderThickness="0"/>
 
                 <TextBlock Text="SEGURIDAD" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
                 <CheckBox x:Name="ChkDns" Style="{StaticResource ModernToggle}" IsChecked="True" Click="ChkDns_Click">
-                    <TextBlock Text="Guardian DNS" Foreground="White" FontSize="13"/>
+                    <TextBlock Text="Guardian DNS Activo" Foreground="White" FontSize="13" Margin="5,0,0,0"/>
                 </CheckBox>
             </StackPanel>
         </Grid>

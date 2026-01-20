@@ -78,6 +78,49 @@ public partial class DashboardView : Window
     BtnWorkOff.IsEnabled = true;
   }
 
+  private async void BtnCopilot_Click(object sender, RoutedEventArgs e)
+  {
+    // Bloqueo inmediato
+    BtnCopilot.IsEnabled = false;
+    var prevContent = BtnCopilot.Content;
+    BtnCopilot.Content = "Preparando...";
+
+    try
+    {
+      var service = new CopilotService(_config);
+
+      await Task.Run(async () => await service.LaunchAsync());
+    }
+    catch (Exception ex)
+    {
+      LogService.Log("[UI ERROR]", ex);
+      MessageBox.Show("Error al iniciar el servicio.");
+    }
+    finally
+    {
+      BtnCopilot.Content = prevContent;
+      BtnCopilot.IsEnabled = true;
+    }
+  }
+
+  private async void BtnResetPath_Click(object sender, RoutedEventArgs e)
+  {
+    try
+    {
+      await _config.SaveAsync(_config.Current with { CopilotFolderPath = null });
+
+      MessageBox.Show(
+          "La ruta de instalación ha sido reiniciada.\nSe te pedirá una nueva carpeta al iniciar Meet Copilot.",
+          "Configuración",
+          MessageBoxButton.OK,
+          MessageBoxImage.Information);
+    }
+    catch (Exception ex)
+    {
+      LogService.Log("[UI] Error resetting path", ex);
+    }
+  }
+
   private void BtnClose_Click(object sender, RoutedEventArgs e)
   {
     _vpnService.StatusChanged -= OnVpnStatusChanged;

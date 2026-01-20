@@ -12,10 +12,7 @@ public class ConfigService
 
   public async Task LoadAsync()
   {
-    if (!File.Exists(ConfigPath))
-    {
-      return;
-    }
+    if (!File.Exists(ConfigPath)) return;
 
     try
     {
@@ -46,7 +43,11 @@ public class ConfigService
 }
 
 [JsonSerializable(typeof(AppSettings))]
-[JsonSourceGenerationOptions(WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(LmStudioResponse))]
+[JsonSerializable(typeof(LmStudioChatRequest))]
+[JsonSourceGenerationOptions(WriteIndented = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class AppJsonContext : JsonSerializerContext
 {
 }
