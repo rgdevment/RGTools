@@ -63,6 +63,54 @@ public class CopilotService(ConfigService configService)
         }
     }
 
+    public List<FileInfo> GetMeetingFiles()
+    {
+        try
+        {
+            string? root = configService.Current.CopilotFolderPath;
+
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
+            {
+                return [];
+            }
+
+            string logsDir = Path.Combine(root, "reuniones_logs");
+
+            if (!Directory.Exists(logsDir))
+            {
+                return [];
+            }
+
+            return new DirectoryInfo(logsDir)
+                .GetFiles("*.md")
+                .OrderByDescending(f => f.LastWriteTime)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[MEETINGS] Error listing files", ex);
+            return [];
+        }
+    }
+
+    public void OpenMeetingFile(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[MEETINGS] Failed to open file", ex);
+        }
+    }
+
     private async Task<bool> ValidateLMStudioActive()
     {
         try

@@ -1,10 +1,9 @@
 <Window x:Class="RGTools.App.Views.DashboardView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="RGTools" Height="520" Width="360"
+        Title="RGTools" Height="560" Width="360"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Icon="pack://application:,,,/app.ico"
         ResizeMode="NoResize">
 
     <Window.Resources>
@@ -21,7 +20,6 @@
             <Setter Property="Height" Value="48"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
         <Style x:Key="StatusButton" TargetType="Button" BasedOn="{StaticResource DashboardButtonBase}">
@@ -56,7 +54,8 @@
                         <Border x:Name="bdr" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
                             <Grid Margin="15,0">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <TextBlock Text="✦" Foreground="{StaticResource Accent}" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="14"/>
+                                    <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                               Foreground="{StaticResource Accent}" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="14"/>
                                     <ContentPresenter VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Grid>
@@ -162,27 +161,29 @@
 
             <StackPanel Grid.Row="1">
                 <TextBlock Text="SERVICIOS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
-
                 <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
-
-                <Button x:Name="BtnCopilot" Content="Meet Copilot AI" Style="{StaticResource ActionButton}" Click="BtnCopilot_Click">
+                <Button x:Name="BtnCopilot" Content="Meet Copilot AI" Style="{StaticResource ActionButton}" Tag="✦" Click="BtnCopilot_Click">
                     <Button.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="Cambiar carpeta de instalación" Click="BtnResetPath_Click"/>
+                            <MenuItem Header="Resetear Carpeta" Click="BtnResetPath_Click"/>
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-
                 <Button x:Name="BtnWorkOff" Content="Finalizar Jornada" Style="{StaticResource DestructiveButton}" Click="BtnWorkOff_Click"/>
 
                 <Separator Background="#222" Margin="0,15,0,20" Height="1" BorderThickness="0"/>
 
                 <TextBlock Text="MINUTAS DE REUNIONES" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
-                <ComboBox x:Name="CmbCopilotOptions" Style="{StaticResource ModernCombo}">
-                    <ComboBoxItem Content="Daily Standup" IsSelected="True"/>
-                    <ComboBoxItem Content="Weekly Sync"/>
-                    <ComboBoxItem Content="Technical Review"/>
+
+                <ComboBox x:Name="CmbCopilotOptions" Style="{StaticResource ModernCombo}" Margin="0,0,0,8">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <Button x:Name="BtnOpenMeeting" Content="Abrir Minuta" Tag="↗" Style="{StaticResource ActionButton}" Click="BtnOpenMeeting_Click"/>
 
                 <Separator Background="#222" Margin="0,20,0,20" Height="1" BorderThickness="0"/>
 
