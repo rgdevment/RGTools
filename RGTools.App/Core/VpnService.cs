@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Net.Sockets;
 
 namespace RGTools.App.Core;
 
@@ -14,13 +15,27 @@ public class VpnService : IDisposable
 
     private bool _lastProcessState;
     private bool _lastLinkState;
+    private bool _lastConnectionState;
+    private int _connectivityTickCount = 0;
+    private string? _currentVpnIp;
     private readonly string _trashLog = Path.Combine(Path.GetTempPath(), "forti_trash.log");
 
     public event Action<bool>? StatusChanged;
+    public event Action<bool>? ConnectionChanged;
 
     public bool IsActive => Process.GetProcesses()
         .Any(p => p.ProcessName.Contains("Forti", StringComparison.OrdinalIgnoreCase) ||
                   p.ProcessName.StartsWith("fc", StringComparison.OrdinalIgnoreCase));
+
+    public bool IsConnected
+    {
+        get { lock (_stateLock) return _lastConnectionState; }
+    }
+
+    public string? VpnIpAddress
+    {
+        get { lock (_stateLock) return _currentVpnIp; }
+    }
 
     public VpnService()
     {
@@ -43,7 +58,7 @@ public class VpnService : IDisposable
             else
                 await RunEncodedPowerShellAsync(GetStartupScript());
 
-            await Task.Delay(1500);
+            await Task.Delay(2000);
 
             lock (_stateLock)
             {
@@ -66,12 +81,14 @@ public class VpnService : IDisposable
     {
         try
         {
-            while (await _timer.WaitForNextTickAsync(token))
+            while (await _timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
-                if (StatusChanged == null || _semaphore.CurrentCount == 0) continue;
+                if (_semaphore.CurrentCount == 0) continue;
 
                 bool currentProcessState = IsActive;
                 bool currentLinkState = GetVpnLinkStatus();
+
+                UpdateConnectivity(currentProcessState);
 
                 lock (_stateLock)
                 {
@@ -91,6 +108,51 @@ public class VpnService : IDisposable
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    private void UpdateConnectivity(bool isActive)
+    {
+        if (!isActive)
+        {
+            if (_lastConnectionState)
+            {
+                lock (_stateLock)
+                {
+                    _lastConnectionState = false;
+                    _currentVpnIp = null;
+                }
+                ConnectionChanged?.Invoke(false);
+            }
+            _connectivityTickCount = 0;
+            return;
+        }
+
+        _connectivityTickCount++;
+        if (_connectivityTickCount < 10) return;
+        _connectivityTickCount = 0;
+
+        string? ip = GetVpnIPv4Address();
+        bool isNowConnected = !string.IsNullOrEmpty(ip);
+
+        lock (_stateLock)
+        {
+            if (isNowConnected == _lastConnectionState) return;
+            _lastConnectionState = isNowConnected;
+            _currentVpnIp = ip;
+        }
+
+        ConnectionChanged?.Invoke(isNowConnected);
+    }
+
+    private string? GetVpnIPv4Address()
+    {
+        return NetworkInterface.GetAllNetworkInterfaces()
+            .FirstOrDefault(ni => (ni.Description.Contains("Fortinet", StringComparison.OrdinalIgnoreCase) ||
+                                   ni.Name.Contains("Forti", StringComparison.OrdinalIgnoreCase)) &&
+                                  ni.OperationalStatus == OperationalStatus.Up)
+            ?.GetIPProperties().UnicastAddresses
+            .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork)?
+            .Address.ToString();
     }
 
     private bool GetVpnLinkStatus()

@@ -163,6 +163,13 @@
             <StackPanel Grid.Row="1">
                 <TextBlock Text="SERVICIOS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
                 <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
+                <TextBlock x:Name="TxtVpnStatus"
+                        FontSize="10"
+                        FontWeight="SemiBold"
+                        Margin="5,-5,0,12"
+                        Visibility="Collapsed"
+                        Foreground="{StaticResource StatusOn}"/>
+
                 <Button x:Name="BtnCopilot" Content="Meet Copilot AI" Style="{StaticResource ActionButton}" Tag="✦" Click="BtnCopilot_Click">
                     <Button.ContextMenu>
                         <ContextMenu>

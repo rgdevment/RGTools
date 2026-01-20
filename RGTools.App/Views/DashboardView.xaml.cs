@@ -24,7 +24,9 @@ public partial class DashboardView : Window
       _copilotService = new CopilotService(_config);
 
       ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
+
       _vpnService.StatusChanged += OnVpnStatusChanged;
+      _vpnService.ConnectionChanged += OnVpnConnectionChanged;
 
       ChkStartup.IsChecked = _config.Current.StartWithWindows;
 
@@ -41,6 +43,23 @@ public partial class DashboardView : Window
     }
   }
 
+  private void OnVpnConnectionChanged(bool isConnected)
+  {
+    LogService.Log($"[UI-VPN] Connection Event: {isConnected} | IP: {_vpnService.VpnIpAddress}");
+    Dispatcher.Invoke(() =>
+    {
+      if (isConnected)
+      {
+        TxtVpnStatus.Text = $"● CONECTADO: {_vpnService.VpnIpAddress}";
+        TxtVpnStatus.Visibility = Visibility.Visible;
+      }
+      else
+      {
+        TxtVpnStatus.Visibility = Visibility.Collapsed;
+      }
+    });
+  }
+
   private async void ChkStartup_Click(object sender, RoutedEventArgs e)
   {
     bool isChecked = ChkStartup.IsChecked ?? false;
@@ -48,10 +67,7 @@ public partial class DashboardView : Window
 
     try
     {
-      // 1. Persist setting
       await _config.SaveAsync(_config.Current with { StartWithWindows = isChecked });
-
-      // 2. Apply Windows Task
       StartupService.SetStartup(isChecked);
     }
     catch (Exception ex)
@@ -76,9 +92,11 @@ public partial class DashboardView : Window
 
   private void UpdateVpnUi(bool isActive)
   {
-    BtnVpn.Content = isActive ? "Apagar VPN" : "Encender VPN";
+    BtnVpn.Content = isActive ? "Apagar servicio VPN" : "Encender servicio VPN";
     BtnVpn.Tag = isActive ? "ON" : "OFF";
     BtnVpn.IsEnabled = true;
+
+    if (!isActive) TxtVpnStatus.Visibility = Visibility.Collapsed;
   }
 
   private async void BtnVpn_Click(object sender, RoutedEventArgs e)
@@ -198,8 +216,6 @@ public partial class DashboardView : Window
       var files = _copilotService.GetMeetingFiles();
       CmbCopilotOptions.ItemsSource = files;
 
-      CmbCopilotOptions.DisplayMemberPath = "Name";
-
       if (files is { Count: > 0 })
       {
         CmbCopilotOptions.SelectedIndex = 0;
@@ -230,6 +246,7 @@ public partial class DashboardView : Window
   {
     LogService.Log("[UI] Closing Dashboard...");
     _vpnService.StatusChanged -= OnVpnStatusChanged;
+    _vpnService.ConnectionChanged -= OnVpnConnectionChanged;
     this.Close();
   }
 
