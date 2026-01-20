@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RGTools.App.Core;
 
@@ -33,11 +34,34 @@ public class JumpboxService(ConfigService config)
     private string? PromptForPath()
     {
         string example = "/home/mario/code/github_work/jumbox";
+        string inputPath = string.Empty;
 
-        return Microsoft.VisualBasic.Interaction.InputBox(
-            $"Ingrese la ruta de WSL2 para Jumpbox:\nEjemplo: {example}",
-            "Configuración Requerida",
-            example);
+        // Diálogo nativo WPF construido al vuelo
+        Window dialog = new Window
+        {
+            Title = "Configuración Jumpbox",
+            Width = 400,
+            Height = 180,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            WindowStyle = WindowStyle.ToolWindow,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 18)),
+            Foreground = System.Windows.Media.Brushes.White,
+            ResizeMode = ResizeMode.NoResize
+        };
+
+        StackPanel stack = new StackPanel { Margin = new Thickness(20) };
+        stack.Children.Add(new TextBlock { Text = "Ruta WSL2 (ej: /home/.../jumbox):", Margin = new Thickness(0, 0, 0, 10) });
+
+        TextBox txtInput = new TextBox { Text = example, Padding = new Thickness(5), Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 37, 38)), Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(1) };
+        stack.Children.Add(txtInput);
+
+        Button btnOk = new Button { Content = "Aceptar", Margin = new Thickness(0, 15, 0, 0), Height = 30, IsDefault = true };
+        btnOk.Click += (s, e) => { inputPath = txtInput.Text; dialog.DialogResult = true; };
+        stack.Children.Add(btnOk);
+
+        dialog.Content = stack;
+
+        return dialog.ShowDialog() == true ? inputPath : null;
     }
 
     private async Task<bool> ValidateWslEnvironmentAsync(string path)
