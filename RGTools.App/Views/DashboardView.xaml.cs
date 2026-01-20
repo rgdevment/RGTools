@@ -26,6 +26,8 @@ public partial class DashboardView : Window
       ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
       _vpnService.StatusChanged += OnVpnStatusChanged;
 
+      ChkStartup.IsChecked = _config.Current.StartWithWindows;
+
       Loaded += OnDashboardLoaded;
 
       UpdateVpnUi(_vpnService.IsActive);
@@ -36,6 +38,27 @@ public partial class DashboardView : Window
       LogService.Log("[UI FATAL] Failed to initialize Dashboard", ex);
       MessageBox.Show($"Error crítico de interfaz: {ex.Message}");
       throw;
+    }
+  }
+
+  private async void ChkStartup_Click(object sender, RoutedEventArgs e)
+  {
+    bool isChecked = ChkStartup.IsChecked ?? false;
+    LogService.Log($"[UI] Startup toggle: {isChecked}");
+
+    try
+    {
+      // 1. Persist setting
+      await _config.SaveAsync(_config.Current with { StartWithWindows = isChecked });
+
+      // 2. Apply Windows Task
+      StartupService.SetStartup(isChecked);
+    }
+    catch (Exception ex)
+    {
+      LogService.Log("[STARTUP ERROR]", ex);
+      MessageBox.Show($"Error al configurar inicio: {ex.Message}");
+      ChkStartup.IsChecked = !isChecked;
     }
   }
 

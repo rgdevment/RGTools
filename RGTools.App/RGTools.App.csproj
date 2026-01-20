@@ -11,7 +11,7 @@
     <Product>RGTools Suite</Product>
     <Authors>rgdevment</Authors>
 
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 

@@ -191,6 +191,10 @@
                 <CheckBox x:Name="ChkDns" Style="{StaticResource ModernToggle}" IsChecked="True" Click="ChkDns_Click">
                     <TextBlock Text="Guardian DNS Activo" Foreground="White" FontSize="13" Margin="5,0,0,0"/>
                 </CheckBox>
+
+                <CheckBox x:Name="ChkStartup" Style="{StaticResource ModernToggle}" Margin="0,0,0,10" Click="ChkStartup_Click">
+                    <TextBlock Text="Iniciar con Windows" Foreground="White" FontSize="13" Margin="5,0,0,0"/>
+                </CheckBox>
             </StackPanel>
         </Grid>
     </Border>
