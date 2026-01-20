@@ -118,7 +118,7 @@ public class CopilotService(ConfigService configService)
             if (!Process.GetProcesses().Any(p => p.ProcessName.Contains("LM Studio", StringComparison.OrdinalIgnoreCase)))
                 return false;
 
-            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1500) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(10000) };
             var ping = new LmStudioChatRequest("current", [new LmMessage("user", "ping")], 1);
             var res = await client.PostAsJsonAsync(LmStudioChatEndpoint, ping, AppJsonContext.Default.LmStudioChatRequest);
             return res.IsSuccessStatusCode;
