@@ -12,31 +12,23 @@ public partial class App : Application
 {
   private readonly ConfigService _configService = new();
   private readonly DnsGuardianService _dnsGuardian = new();
+  private readonly VpnService _vpnService = new();
 
   private TaskbarIcon? _trayIcon;
   private TrayViewModel? _viewModel;
-
   private DashboardView? _dashboardWindow;
 
   protected override async void OnStartup(StartupEventArgs e)
   {
     base.OnStartup(e);
-
     LogService.Initialize();
 
-    if (AdminHelper.IsAdministrator())
-    {
-      LogService.Log("[App] Running with Administrator privileges.");
-    }
-    else
-    {
-      LogService.Log("[App] WARNING: Running as Standard User. Network features will be simulated.");
-    }
+    LogService.Log("[SYSTEM] Context confirmed: Administrator privileges granted via Manifest.");
 
     try
     {
       await _configService.LoadAsync();
-      LogService.Log("[App] Configuration loaded.");
+      LogService.Log("[CONFIG] Loaded.");
 
       if (_configService.Current.DnsGuardianEnabled)
       {
@@ -47,14 +39,14 @@ public partial class App : Application
     }
     catch (Exception ex)
     {
-      LogService.Log("CRITICAL FAILURE during startup", ex);
+      LogService.Log("[CRITICAL] Bootstrap failed.", ex);
       Shutdown();
     }
   }
 
   private void InitializeTrayIcon()
   {
-    _viewModel = new TrayViewModel(OpenDashboardWindow);
+    _viewModel = new TrayViewModel(OpenDashboardWindow, _vpnService, _dnsGuardian);
 
     _trayIcon = new TaskbarIcon
     {
@@ -68,10 +60,10 @@ public partial class App : Application
     var contextMenu = new ContextMenu();
 
     var dashItem = new MenuItem { Header = "Dashboard", FontWeight = FontWeights.Bold };
-    dashItem.Click += (s, args) => _viewModel.OpenDashboardCommand.Execute(null);
+    dashItem.Click += (_, _) => _viewModel.OpenDashboardCommand.Execute(null);
 
     var exitItem = new MenuItem { Header = "Exit RGTools" };
-    exitItem.Click += (s, args) => _viewModel.CloseCommand.Execute(null);
+    exitItem.Click += (_, _) => _viewModel.CloseCommand.Execute(null);
 
     contextMenu.Items.Add(dashItem);
     contextMenu.Items.Add(new Separator());
@@ -80,34 +72,38 @@ public partial class App : Application
     _trayIcon.ContextMenu = contextMenu;
     _trayIcon.ForceCreate();
 
-    LogService.Log("[App] Tray Icon initialized.");
+    LogService.Log("[UI] Tray Icon ready with VPN and DNS monitoring.");
   }
 
   private void OpenDashboardWindow()
   {
     if (_dashboardWindow == null)
     {
-      _dashboardWindow = new DashboardView(_configService, _dnsGuardian);
-      _dashboardWindow.Closed += (s, e) =>
+      _dashboardWindow = new DashboardView(_configService, _dnsGuardian, _vpnService);
+
+      _dashboardWindow.Closed += (_, _) =>
       {
         _dashboardWindow = null;
         GC.Collect();
-        LogService.Log("[UI] Dashboard closed and resources freed.");
+        LogService.Log("[UI] Dashboard destroyed.");
       };
+
       _dashboardWindow.Show();
     }
 
     _dashboardWindow.Activate();
-
     if (_dashboardWindow.WindowState == WindowState.Minimized)
       _dashboardWindow.WindowState = WindowState.Normal;
   }
 
   protected override void OnExit(ExitEventArgs e)
   {
-    LogService.Log("[App] Shutting down...");
+    LogService.Log("[APP] Shutdown sequence initiated.");
+
     _trayIcon?.Dispose();
     _dnsGuardian.Stop();
+    _vpnService.Dispose();
+
     base.OnExit(e);
   }
 }

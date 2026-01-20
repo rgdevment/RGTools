@@ -5,7 +5,7 @@ using System.Net.Sockets;
 
 namespace RGTools.App.Core;
 
-public class DnsGuardianService
+public class DnsGuardianService : IDisposable
 {
   private const string TargetDns = "192.168.50.100";
   private const int CheckIntervalMinutes = 5;
@@ -13,6 +13,9 @@ public class DnsGuardianService
   private CancellationTokenSource? _cts;
   private ManagementEventWatcher? _networkWatcher;
   private readonly SemaphoreSlim _lock = new(1, 1);
+
+  public bool IsRunning => _cts != null;
+  public event Action<bool>? StatusChanged;
 
   public void Start()
   {
@@ -22,6 +25,7 @@ public class DnsGuardianService
     StartWmiListener();
     Task.Run(() => LoopAsync(_cts.Token));
 
+    StatusChanged?.Invoke(true);
     LogService.Log("[Guardian] Service Started.");
   }
 
@@ -37,6 +41,7 @@ public class DnsGuardianService
     _networkWatcher?.Dispose();
     _networkWatcher = null;
 
+    StatusChanged?.Invoke(false);
     LogService.Log("[Guardian] Service Stopped.");
   }
 
@@ -81,8 +86,6 @@ public class DnsGuardianService
   {
     if (!await _lock.WaitAsync(0)) return;
 
-    Debug.WriteLine($"[Guardian] ({source}) Checking DNS settings...");
-
     try
     {
       var nic = GetPhysicalInterface();
@@ -99,12 +102,7 @@ public class DnsGuardianService
       if (currentDns != TargetDns)
       {
         LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Found: '{currentDns}'. Restoring to {TargetDns}...");
-
         await RestoreDnsIpAsync(nic.Name);
-      }
-      else
-      {
-        Debug.WriteLine($"[Guardian] ({source}) Status Green.");
       }
     }
     catch (Exception ex)
@@ -119,9 +117,7 @@ public class DnsGuardianService
 
   private async Task RestoreDnsIpAsync(string interfaceName)
   {
-    // Force static DNS IP (Native command, efficient and reliable)
     await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
-
     LogService.Log($"[Guardian] DNS restored for interface '{interfaceName}'.");
   }
 
@@ -141,12 +137,6 @@ public class DnsGuardianService
 
   private async Task RunProcessAsync(string fileName, string args)
   {
-    if (!AdminHelper.IsAdministrator())
-    {
-      LogService.Log($"[Sim] {fileName} {args}");
-      return;
-    }
-
     try
     {
       var psi = new ProcessStartInfo(fileName, args)
@@ -154,6 +144,7 @@ public class DnsGuardianService
         CreateNoWindow = true,
         UseShellExecute = false
       };
+
       using var p = Process.Start(psi);
       if (p != null) await p.WaitForExitAsync();
     }
@@ -161,5 +152,11 @@ public class DnsGuardianService
     {
       LogService.Log($"[Guardian] Process Error: {ex.Message}");
     }
+  }
+
+  public void Dispose()
+  {
+    Stop();
+    _lock.Dispose();
   }
 }

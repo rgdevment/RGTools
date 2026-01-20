@@ -4,6 +4,7 @@
         Title="RGTools" Height="480" Width="360"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Icon="pack://application:,,,/app.ico"
         ResizeMode="NoResize">
 
     <Window.Resources>
@@ -112,7 +113,7 @@
 
             <StackPanel Grid.Row="1">
                 <TextBlock Text="SERVICIOS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
-                <Button x:Name="BtnVpn" Content="Encender / Apagar VPN" Style="{StaticResource StatusButton}" Tag="OFF"/>
+                <Button x:Name="BtnVpn" Content="Encender VPN" Style="{StaticResource StatusButton}" Click="BtnVpn_Click" Tag="OFF"/>
                 <Button x:Name="BtnCopilot" Content="Meet Copilot" Style="{StaticResource StatusButton}" Tag="ON"/>
                 <Button x:Name="BtnWorkOff" Content="Work Off" Style="{StaticResource StatusButton}" Tag="OFF" Foreground="{StaticResource StatusOff}"/>
 

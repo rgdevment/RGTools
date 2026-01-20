@@ -14,32 +14,39 @@ public class ConfigService
   {
     if (!File.Exists(ConfigPath))
     {
-      Current = new AppSettings();
       return;
     }
 
     try
     {
-      using var stream = File.OpenRead(ConfigPath);
+      using var stream = new FileStream(ConfigPath, FileMode.Open, FileAccess.Read, FileShare.Read);
       Current = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppSettings)
                 ?? new AppSettings();
     }
-    catch
+    catch (Exception ex)
     {
+      LogService.Log($"[CONFIG] Load error: {ex.Message}");
       Current = new AppSettings();
     }
   }
 
   public async Task SaveAsync(AppSettings newSettings)
   {
-    Current = newSettings;
-    using var stream = File.Create(ConfigPath);
-    await JsonSerializer.SerializeAsync(stream, Current, AppJsonContext.Default.AppSettings);
+    try
+    {
+      Current = newSettings;
+      using var stream = new FileStream(ConfigPath, FileMode.Create, FileAccess.Write, FileShare.None);
+      await JsonSerializer.SerializeAsync(stream, Current, AppJsonContext.Default.AppSettings);
+    }
+    catch (Exception ex)
+    {
+      LogService.Log($"[CONFIG] Save error: {ex.Message}");
+    }
   }
 }
 
 [JsonSerializable(typeof(AppSettings))]
-[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSourceGenerationOptions(WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 internal partial class AppJsonContext : JsonSerializerContext
 {
 }

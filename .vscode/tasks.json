@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Build RGTools",
+      "type": "shell",
+      "command": "dotnet build",
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "2. Run RGTools (Elevated)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Start-Process '${workspaceFolder}/RGTools.App/bin/Debug/net10.0-windows/RGTools.App.exe' -Verb RunAs"
+      ],
+      "dependsOn": "1. Build RGTools",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "3. Monitor Real-time Logs",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Clear-Content \"$env:LOCALAPPDATA\\RGTools\\logs\\rgtools.log\" -ErrorAction SilentlyContinue; Get-Content \"$env:LOCALAPPDATA\\RGTools\\logs\\rgtools.log\" -Wait"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "🚀 Launch Suite (Full Beta)",
+      "dependsOn": ["2. Run RGTools (Elevated)", "3. Monitor Real-time Logs"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    }
+  ]
+}
