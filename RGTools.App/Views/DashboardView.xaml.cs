@@ -11,6 +11,7 @@ public partial class DashboardView : Window
   private readonly VpnService _vpnService;
   private readonly CopilotService _copilotService;
   private readonly JumpboxService _jumpboxService;
+  private FileSystemWatcher? _fileWatcher;
 
   public DashboardView(ConfigService config, DnsGuardianService guardian, VpnService vpnService)
   {
@@ -242,27 +243,29 @@ public partial class DashboardView : Window
 
   private void RefreshMeetingFiles()
   {
-    LogService.Log("[UI] Refreshing meeting logs list...");
-    try
+    Dispatcher.Invoke(() =>
     {
-      var files = _copilotService.GetMeetingFiles();
-      CmbCopilotOptions.ItemsSource = files;
+      LogService.Log("[UI] Refreshing meeting logs list...");
+      try
+      {
+        var files = _copilotService.GetMeetingFiles();
+        CmbCopilotOptions.ItemsSource = files;
 
-      if (files is { Count: > 0 })
-      {
-        CmbCopilotOptions.SelectedIndex = 0;
-        LogService.Log($"[UI] Found {files.Count} meeting logs.");
+        if (files is { Count: > 0 })
+        {
+          if (CmbCopilotOptions.SelectedIndex == -1)
+            CmbCopilotOptions.SelectedIndex = 0;
+        }
+        else
+        {
+          CmbCopilotOptions.SelectedIndex = -1;
+        }
       }
-      else
+      catch (Exception ex)
       {
-        CmbCopilotOptions.SelectedIndex = -1;
-        LogService.Log("[UI] No meeting logs found.");
+        LogService.Log("[UI ERROR] Failed to refresh meeting list", ex);
       }
-    }
-    catch (Exception ex)
-    {
-      LogService.Log("[UI ERROR] Failed to refresh meeting list", ex);
-    }
+    });
   }
 
   private void BtnOpenMeeting_Click(object sender, RoutedEventArgs e)
@@ -274,11 +277,35 @@ public partial class DashboardView : Window
     }
   }
 
+  private void SetupFolderWatcher()
+  {
+    string? path = _config.Current.CopilotFolderPath;
+
+    if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) return;
+
+    _fileWatcher = new FileSystemWatcher(path)
+    {
+      NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+      EnableRaisingEvents = true
+    };
+
+    _fileWatcher.Created += (s, e) => RefreshMeetingFiles();
+    _fileWatcher.Deleted += (s, e) => RefreshMeetingFiles();
+    _fileWatcher.Renamed += (s, e) => RefreshMeetingFiles();
+  }
+
   private void BtnClose_Click(object sender, RoutedEventArgs e)
   {
     LogService.Log("[UI] Closing Dashboard...");
     _vpnService.StatusChanged -= OnVpnStatusChanged;
     _vpnService.ConnectionChanged -= OnVpnConnectionChanged;
+
+    if (_fileWatcher != null)
+    {
+      _fileWatcher.EnableRaisingEvents = false;
+      _fileWatcher.Dispose();
+    }
+
     this.Close();
   }
 
