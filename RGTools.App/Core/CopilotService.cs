@@ -9,7 +9,7 @@ namespace RGTools.App.Core;
 
 public class CopilotService(ConfigService configService)
 {
-    private const string RepoUrl = "https://github.com/tu-usuario/meet-copilot-main.git";
+    private const string RepoUrl = "https://github.com/rgdevment/meet-copilot-main.git";
     private const string MinVersion = "3.10";
     private const string LmStudioChatEndpoint = "http://localhost:1234/v1/chat/completions";
 
@@ -82,7 +82,7 @@ public class CopilotService(ConfigService configService)
             }
 
             return new DirectoryInfo(logsDir)
-                .GetFiles("*.md")
+                .GetFiles("*.md", SearchOption.AllDirectories)
                 .OrderByDescending(f => f.LastWriteTime)
                 .ToList();
         }
