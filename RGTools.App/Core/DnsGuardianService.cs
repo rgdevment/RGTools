@@ -9,6 +9,7 @@ public class DnsGuardianService : IDisposable
 {
   private const string TargetDns = "192.168.50.100";
   private const int CheckIntervalMinutes = 5;
+  private const bool EnableDohEncryption = false; // Set to true to enable DNS-over-HTTPS encryption
 
   private static readonly string? TargetDohTemplate = Environment.GetEnvironmentVariable("PERSONAL_DOH", EnvironmentVariableTarget.Machine);
 
@@ -120,7 +121,7 @@ public class DnsGuardianService : IDisposable
     // Future-self: Critical - restore IP immediately
     await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
 
-    if (!string.IsNullOrEmpty(TargetDohTemplate))
+    if (EnableDohEncryption && !string.IsNullOrEmpty(TargetDohTemplate))
     {
       string psScript = """
                 $dns = '[DNS]';
