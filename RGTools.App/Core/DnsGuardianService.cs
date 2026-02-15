@@ -10,12 +10,24 @@ public class DnsGuardianService : IDisposable
     private const string TargetDns = "192.168.50.100";
     private const int CheckIntervalMinutes = 5;
     private const bool EnableDohEncryption = false; // Set to true to enable DNS-over-HTTPS encryption
+    private const bool EnableStrictMode = true; // Set to true to block all DNS traffic except through TargetDns
 
     private static readonly string? TargetDohTemplate = Environment.GetEnvironmentVariable("PERSONAL_DOH", EnvironmentVariableTarget.Machine);
+    private static readonly string[] KnownDohDotServers = [
+        "8.8.8.8", "8.8.4.4",           // Google DNS
+        "1.1.1.1", "1.0.0.1",           // Cloudflare
+        "9.9.9.9", "149.112.112.112",   // Quad9
+        "208.67.222.222", "208.67.220.220", // OpenDNS
+        "94.140.14.14", "94.140.15.15", // AdGuard DNS
+        "76.76.2.0", "76.76.10.0",      // Control D
+        "185.228.168.9", "185.228.169.9", // CleanBrowsing
+        "45.90.28.0", "45.90.30.0"      // NextDNS
+    ];
 
     private CancellationTokenSource? _cts;
     private ManagementEventWatcher? _networkWatcher;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private bool _firewallRulesApplied = false;
 
     public bool IsRunning => _cts != null;
     public event Action<bool>? StatusChanged;
@@ -24,6 +36,11 @@ public class DnsGuardianService : IDisposable
     {
         if (_cts != null) return;
         _cts = new CancellationTokenSource();
+
+        if (EnableStrictMode)
+        {
+            ApplyFirewallRules();
+        }
 
         StartWmiListener();
         Task.Run(() => LoopAsync(_cts.Token));
@@ -43,6 +60,11 @@ public class DnsGuardianService : IDisposable
         _networkWatcher?.Stop();
         _networkWatcher?.Dispose();
         _networkWatcher = null;
+
+        if (_firewallRulesApplied)
+        {
+            RemoveFirewallRules();
+        }
 
         StatusChanged?.Invoke(false);
         LogService.Log("[Guardian] Service Stopped.");
@@ -181,6 +203,68 @@ public class DnsGuardianService : IDisposable
         catch (Exception ex)
         {
             LogService.Log($"[Guardian] Process Error: {ex.Message}");
+        }
+    }
+
+    private void ApplyFirewallRules()
+    {
+        try
+        {
+            // Allow outbound DNS to our protected server (high priority)
+            string allowRule = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Allow\" dir=out action=allow protocol=UDP remoteip={TargetDns} remoteport=53";
+            RunProcessAsync("cmd.exe", $"/c {allowRule}").Wait();
+
+            string allowRuleTcp = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Allow-TCP\" dir=out action=allow protocol=TCP remoteip={TargetDns} remoteport=53";
+            RunProcessAsync("cmd.exe", $"/c {allowRuleTcp}").Wait();
+
+            // Block all other outbound DNS traffic
+            string blockRule = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block\" dir=out action=block protocol=UDP remoteport=53";
+            RunProcessAsync("cmd.exe", $"/c {blockRule}").Wait();
+
+            string blockRuleTcp = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-TCP\" dir=out action=block protocol=TCP remoteport=53";
+            RunProcessAsync("cmd.exe", $"/c {blockRuleTcp}").Wait();
+
+            // Block DNS-over-TLS (DoT) - Port 853
+            string blockDoT = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-DoT\" dir=out action=block protocol=TCP remoteport=853";
+            RunProcessAsync("cmd.exe", $"/c {blockDoT}").Wait();
+
+            // Block known DoH/DoT servers on port 443 (DoH uses HTTPS)
+            foreach (var server in KnownDohDotServers)
+            {
+                string blockDoh = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-DoH-{server.Replace(".", "-")}\" dir=out action=block protocol=TCP remoteip={server} remoteport=443";
+                RunProcessAsync("cmd.exe", $"/c {blockDoh}").Wait();
+            }
+
+            _firewallRulesApplied = true;
+            LogService.Log($"[Guardian] Strict Mode ENABLED - All DNS/DoH/DoT blocked except {TargetDns}");
+        }
+        catch (Exception ex)
+        {
+            LogService.Log($"[Guardian] Firewall Error: {ex.Message}");
+        }
+    }
+
+    private void RemoveFirewallRules()
+    {
+        try
+        {
+            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Allow\"").Wait();
+            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Allow-TCP\"").Wait();
+            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block\"").Wait();
+            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-TCP\"").Wait();
+            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-DoT\"").Wait();
+
+            foreach (var server in KnownDohDotServers)
+            {
+                RunProcessAsync("cmd.exe", $"/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-DoH-{server.Replace(".", "-")}\"").Wait();
+            }
+
+            _firewallRulesApplied = false;
+            LogService.Log("[Guardian] Strict Mode DISABLED - Firewall rules removed.");
+        }
+        catch (Exception ex)
+        {
+            LogService.Log($"[Guardian] Firewall Cleanup Error: {ex.Message}");
         }
     }
 
