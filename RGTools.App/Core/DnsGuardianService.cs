@@ -10,43 +10,42 @@ public class DnsGuardianService : IDisposable
     private const string TargetDns = "192.168.50.100";
     private const int CheckIntervalMinutes = 5;
     private const bool EnableDohEncryption = false; // Set to true to enable DNS-over-HTTPS encryption
-    private const bool EnableStrictMode = true; // Set to true to block all DNS traffic except through TargetDns
 
     private static readonly string? TargetDohTemplate = Environment.GetEnvironmentVariable("PERSONAL_DOH", EnvironmentVariableTarget.Machine);
-    private static readonly string[] KnownDohDotServers = [
-        "8.8.8.8", "8.8.4.4",           // Google DNS
-        "1.1.1.1", "1.0.0.1",           // Cloudflare
-        "9.9.9.9", "149.112.112.112",   // Quad9
-        "208.67.222.222", "208.67.220.220", // OpenDNS
-        "94.140.14.14", "94.140.15.15", // AdGuard DNS
-        "76.76.2.0", "76.76.10.0",      // Control D
-        "185.228.168.9", "185.228.169.9", // CleanBrowsing
-        "45.90.28.0", "45.90.30.0"      // NextDNS
-    ];
 
     private CancellationTokenSource? _cts;
     private ManagementEventWatcher? _networkWatcher;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private bool _firewallRulesApplied = false;
 
     public bool IsRunning => _cts != null;
     public event Action<bool>? StatusChanged;
 
     public void Start()
     {
-        if (_cts != null) return;
-        _cts = new CancellationTokenSource();
-
-        if (EnableStrictMode)
+        try
         {
-            ApplyFirewallRules();
+            LogService.Log("[Guardian] Start() called.");
+            if (_cts != null)
+            {
+                LogService.Log("[Guardian] Already running, ignoring Start().");
+                return;
+            }
+
+            _cts = new CancellationTokenSource();
+            LogService.Log("[Guardian] CancellationTokenSource created.");
+
+            StartWmiListener();
+            LogService.Log("[Guardian] Starting background loop task...");
+            Task.Run(() => LoopAsync(_cts.Token));
+
+            StatusChanged?.Invoke(true);
+            LogService.Log("[Guardian] Service Started successfully.");
         }
-
-        StartWmiListener();
-        Task.Run(() => LoopAsync(_cts.Token));
-
-        StatusChanged?.Invoke(true);
-        LogService.Log("[Guardian] Service Started.");
+        catch (Exception ex)
+        {
+            LogService.LogCrash("[Guardian] CRITICAL: Start() failed", ex);
+            throw;
+        }
     }
 
     public void Stop()
@@ -61,11 +60,6 @@ public class DnsGuardianService : IDisposable
         _networkWatcher?.Dispose();
         _networkWatcher = null;
 
-        if (_firewallRulesApplied)
-        {
-            RemoveFirewallRules();
-        }
-
         StatusChanged?.Invoke(false);
         LogService.Log("[Guardian] Service Stopped.");
     }
@@ -74,6 +68,7 @@ public class DnsGuardianService : IDisposable
     {
         try
         {
+            LogService.Log("[Guardian] Creating WMI query for network changes...");
             var query = new WqlEventQuery("__InstanceModificationEvent",
                 TimeSpan.FromSeconds(2),
                 "TargetInstance ISA 'Win32_NetworkAdapterConfiguration'");
@@ -81,14 +76,16 @@ public class DnsGuardianService : IDisposable
             _networkWatcher = new ManagementEventWatcher(query);
             _networkWatcher.EventArrived += async (s, e) =>
             {
+                LogService.Log("[Guardian] WMI network change event detected.");
                 await Task.Delay(2000);
                 await CheckAndRestoreDnsAsync("WmiEvent");
             };
             _networkWatcher.Start();
+            LogService.Log("[Guardian] WMI listener started successfully.");
         }
         catch (Exception ex)
         {
-            LogService.Log($"[Guardian] WMI Error: {ex.Message}");
+            LogService.Log($"[Guardian] WMI listener failed to start", ex);
         }
     }
 
@@ -96,41 +93,72 @@ public class DnsGuardianService : IDisposable
     {
         try
         {
+            LogService.Log("[Guardian] Loop started, performing startup DNS check...");
             await CheckAndRestoreDnsAsync("Startup");
 
+            LogService.Log($"[Guardian] Creating timer for {CheckIntervalMinutes} minute intervals...");
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(CheckIntervalMinutes));
+            LogService.Log("[Guardian] Entering main monitoring loop.");
+
             while (await timer.WaitForNextTickAsync(token))
             {
+                LogService.Log("[Guardian] Timer tick - running scheduled DNS check.");
                 await CheckAndRestoreDnsAsync("Timer");
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            LogService.Log("[Guardian] Loop cancelled normally (service stopped).");
+        }
+        catch (Exception ex)
+        {
+            LogService.LogCrash("[Guardian] CRITICAL: LoopAsync crashed", ex);
+            throw;
+        }
     }
 
     private async Task CheckAndRestoreDnsAsync(string source)
     {
-        if (!await _lock.WaitAsync(0)) return;
+        LogService.Log($"[Guardian] ({source}) Check initiated.");
+
+        if (!await _lock.WaitAsync(0))
+        {
+            LogService.Log($"[Guardian] ({source}) Lock busy, skipping check.");
+            return;
+        }
 
         try
         {
             var nic = GetPhysicalInterface();
-            if (nic == null) return;
+            if (nic == null)
+            {
+                LogService.Log($"[Guardian] ({source}) No active physical interface found.");
+                return;
+            }
 
+            LogService.Log($"[Guardian] ({source}) Checking interface: {nic.Name} [{nic.Description}]");
             var ipProps = nic.GetIPProperties();
             var dnsAddresses = ipProps.DnsAddresses
                 .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
                 .Select(ip => ip.ToString())
                 .ToList();
 
-            if (dnsAddresses.FirstOrDefault() != TargetDns)
+            var currentDns = dnsAddresses.FirstOrDefault() ?? "None";
+            LogService.Log($"[Guardian] ({source}) Current DNS: {currentDns}, Expected: {TargetDns}");
+
+            if (currentDns != TargetDns)
             {
                 LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Restoring {TargetDns}...");
                 await RestoreDnsIpAsync(nic.Name);
             }
+            else
+            {
+                LogService.Log($"[Guardian] ({source}) DNS is correct.");
+            }
         }
         catch (Exception ex)
         {
-            LogService.Log($"[Guardian] Error: {ex.Message}");
+            LogService.Log($"[Guardian] ({source}) Check failed", ex);
         }
         finally
         {
@@ -175,96 +203,78 @@ public class DnsGuardianService : IDisposable
 
     private NetworkInterface? GetPhysicalInterface()
     {
-        return NetworkInterface.GetAllNetworkInterfaces()
-            .Where(ni =>
-                ni.OperationalStatus == OperationalStatus.Up &&
-                (ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
-                 ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) &&
-                ni.GetIPProperties().GatewayAddresses.Count > 0 &&
-                ni.NetworkInterfaceType != NetworkInterfaceType.Loopback
-            )
-            .OrderByDescending(ni => ni.Speed)
-            .FirstOrDefault();
+        try
+        {
+            var allInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+            LogService.Log($"[Guardian] Found {allInterfaces.Length} total network interfaces.");
+
+            var selected = allInterfaces
+                .Where(ni =>
+                {
+                    var isUp = ni.OperationalStatus == OperationalStatus.Up;
+                    var isPhysical = ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
+                                     ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                    var hasGateway = ni.GetIPProperties().GatewayAddresses.Count > 0;
+                    var notLoopback = ni.NetworkInterfaceType != NetworkInterfaceType.Loopback;
+
+                    if (isUp && isPhysical)
+                    {
+                        LogService.Log($"[Guardian]   -> {ni.Name} | Type: {ni.NetworkInterfaceType} | Gateway: {hasGateway}");
+                    }
+
+                    return isUp && isPhysical && hasGateway && notLoopback;
+                })
+                .OrderByDescending(ni => ni.Speed)
+                .FirstOrDefault();
+
+            if (selected != null)
+            {
+                LogService.Log($"[Guardian] Selected: {selected.Name} (Speed: {selected.Speed} bps)");
+            }
+
+            return selected;
+        }
+        catch (Exception ex)
+        {
+            LogService.Log($"[Guardian] GetPhysicalInterface failed", ex);
+            return null;
+        }
     }
 
     private async Task RunProcessAsync(string fileName, string args)
     {
         try
         {
+            var truncatedArgs = args.Length > 100 ? args.Substring(0, 100) + "..." : args;
+            LogService.Log($"[Guardian] Executing: {fileName} {truncatedArgs}");
+
             ProcessStartInfo psi = new(fileName, args)
             {
                 CreateNoWindow = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
             using Process? p = Process.Start(psi);
-            if (p != null) await p.WaitForExitAsync();
-        }
-        catch (Exception ex)
-        {
-            LogService.Log($"[Guardian] Process Error: {ex.Message}");
-        }
-    }
-
-    private void ApplyFirewallRules()
-    {
-        try
-        {
-            // Allow outbound DNS to our protected server (high priority)
-            string allowRule = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Allow\" dir=out action=allow protocol=UDP remoteip={TargetDns} remoteport=53";
-            RunProcessAsync("cmd.exe", $"/c {allowRule}").Wait();
-
-            string allowRuleTcp = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Allow-TCP\" dir=out action=allow protocol=TCP remoteip={TargetDns} remoteport=53";
-            RunProcessAsync("cmd.exe", $"/c {allowRuleTcp}").Wait();
-
-            // Block all other outbound DNS traffic
-            string blockRule = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block\" dir=out action=block protocol=UDP remoteport=53";
-            RunProcessAsync("cmd.exe", $"/c {blockRule}").Wait();
-
-            string blockRuleTcp = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-TCP\" dir=out action=block protocol=TCP remoteport=53";
-            RunProcessAsync("cmd.exe", $"/c {blockRuleTcp}").Wait();
-
-            // Block DNS-over-TLS (DoT) - Port 853
-            string blockDoT = "netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-DoT\" dir=out action=block protocol=TCP remoteport=853";
-            RunProcessAsync("cmd.exe", $"/c {blockDoT}").Wait();
-
-            // Block known DoH/DoT servers on port 443 (DoH uses HTTPS)
-            foreach (var server in KnownDohDotServers)
+            if (p != null)
             {
-                string blockDoh = $"netsh advfirewall firewall add rule name=\"RGTools-DNS-Guardian-Block-DoH-{server.Replace(".", "-")}\" dir=out action=block protocol=TCP remoteip={server} remoteport=443";
-                RunProcessAsync("cmd.exe", $"/c {blockDoh}").Wait();
-            }
+                await p.WaitForExitAsync();
+                LogService.Log($"[Guardian] Process exited: code {p.ExitCode}");
 
-            _firewallRulesApplied = true;
-            LogService.Log($"[Guardian] Strict Mode ENABLED - All DNS/DoH/DoT blocked except {TargetDns}");
+                if (p.ExitCode != 0)
+                {
+                    var stderr = await p.StandardError.ReadToEndAsync();
+                    if (!string.IsNullOrWhiteSpace(stderr))
+                    {
+                        LogService.Log($"[Guardian] Process error output: {stderr}");
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
-            LogService.Log($"[Guardian] Firewall Error: {ex.Message}");
-        }
-    }
-
-    private void RemoveFirewallRules()
-    {
-        try
-        {
-            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Allow\"").Wait();
-            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Allow-TCP\"").Wait();
-            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block\"").Wait();
-            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-TCP\"").Wait();
-            RunProcessAsync("cmd.exe", "/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-DoT\"").Wait();
-
-            foreach (var server in KnownDohDotServers)
-            {
-                RunProcessAsync("cmd.exe", $"/c netsh advfirewall firewall delete rule name=\"RGTools-DNS-Guardian-Block-DoH-{server.Replace(".", "-")}\"").Wait();
-            }
-
-            _firewallRulesApplied = false;
-            LogService.Log("[Guardian] Strict Mode DISABLED - Firewall rules removed.");
-        }
-        catch (Exception ex)
-        {
-            LogService.Log($"[Guardian] Firewall Cleanup Error: {ex.Message}");
+            LogService.Log($"[Guardian] RunProcess failed: {fileName}", ex);
         }
     }
 
