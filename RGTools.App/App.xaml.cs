@@ -1,7 +1,9 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using H.NotifyIcon;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using RGTools.App.Core;
 using RGTools.App.ViewModels;
 using RGTools.App.Views;
@@ -10,10 +12,7 @@ namespace RGTools.App;
 
 public partial class App : Application
 {
-    private readonly ConfigService _configService = new();
-    private readonly DnsGuardianService _dnsGuardian = new();
-    private readonly VpnService _vpnService = new();
-
+    private IHost? _host;
     private TaskbarIcon? _trayIcon;
     private TrayViewModel? _viewModel;
     private DashboardView? _dashboardWindow;
@@ -22,7 +21,6 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Capture unhandled exceptions globally
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -33,13 +31,17 @@ public partial class App : Application
 
         try
         {
-            await _configService.LoadAsync();
+            _host = BuildHost();
+            await _host.StartAsync();
+
+            var config = _host.Services.GetRequiredService<IConfigService>();
+            await config.LoadAsync();
             LogService.Log("[CONFIG] Loaded.");
 
-            if (_configService.Current.DnsGuardianEnabled)
+            if (config.Current.DnsGuardianEnabled)
             {
                 LogService.Log("[CONFIG] DNS Guardian is enabled, starting service...");
-                _dnsGuardian.Start();
+                _host.Services.GetRequiredService<IDnsGuardianService>().Start();
             }
             else
             {
@@ -53,6 +55,27 @@ public partial class App : Application
             LogService.LogCrash("[CRITICAL] Bootstrap failed", ex);
             Shutdown();
         }
+    }
+
+    private static IHost BuildHost()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        var services = builder.Services;
+
+        services.AddSingleton<IConfigService, ConfigService>();
+        services.AddSingleton<ISystemStateStore, SystemStateStore>();
+        services.AddSingleton<NotificationService>();
+        services.AddSingleton<INotificationService>(sp => sp.GetRequiredService<NotificationService>());
+        services.AddSingleton<IUserConsentService, UserConsentService>();
+
+        services.AddSingleton<IDnsGuardianService, DnsGuardianService>();
+        services.AddSingleton<IVpnService, VpnService>();
+        services.AddSingleton<IJumpboxService, JumpboxService>();
+
+        services.AddSingleton<TrayViewModel>();
+        services.AddTransient<DashboardView>();
+
+        return builder.Build();
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -69,20 +92,21 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         LogService.LogCrash("[ERROR] Unhandled Dispatcher Exception", e.Exception);
-        e.Handled = true; // Prevent app from crashing
+        e.Handled = true;
         LogService.Log("[RECOVERY] Exception handled, continuing execution.");
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
         LogService.LogCrash("[ERROR] Unobserved Task Exception", e.Exception);
-        e.SetObserved(); // Prevent app from crashing
+        e.SetObserved();
         LogService.Log("[RECOVERY] Task exception observed, continuing execution.");
     }
 
     private void InitializeTrayIcon()
     {
-        _viewModel = new TrayViewModel(OpenDashboardWindow, _vpnService, _dnsGuardian);
+        _viewModel = _host!.Services.GetRequiredService<TrayViewModel>();
+        _viewModel.OpenDashboardRequested += OpenDashboardWindow;
 
         _trayIcon = new TaskbarIcon
         {
@@ -108,6 +132,8 @@ public partial class App : Application
         _trayIcon.ContextMenu = contextMenu;
         _trayIcon.ForceCreate();
 
+        _host.Services.GetRequiredService<NotificationService>().Attach(_trayIcon);
+
         LogService.Log("[UI] Tray Icon ready with VPN and DNS monitoring.");
     }
 
@@ -115,12 +141,11 @@ public partial class App : Application
     {
         if (_dashboardWindow == null)
         {
-            _dashboardWindow = new DashboardView(_configService, _dnsGuardian, _vpnService);
+            _dashboardWindow = _host!.Services.GetRequiredService<DashboardView>();
 
             _dashboardWindow.Closed += (_, _) =>
             {
                 _dashboardWindow = null;
-                GC.Collect();
                 LogService.Log("[UI] Dashboard destroyed.");
             };
 
@@ -147,24 +172,19 @@ public partial class App : Application
             LogService.Log("[APP] Tray icon disposal error", ex);
         }
 
-        try
+        if (_host != null)
         {
-            _dnsGuardian.Stop();
-            LogService.Log("[APP] DNS Guardian stopped.");
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[APP] DNS Guardian stop error", ex);
-        }
+            try
+            {
+                _host.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                LogService.Log("[APP] Host stop error", ex);
+            }
 
-        try
-        {
-            _vpnService.Dispose();
-            LogService.Log("[APP] VPN Service disposed.");
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[APP] VPN Service disposal error", ex);
+            _host.Dispose();
+            LogService.Log("[APP] Host disposed (singletons released).");
         }
 
         LogService.Log("[APP] Shutdown completed.");

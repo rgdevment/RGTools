@@ -4,25 +4,25 @@ using System.Text.Json.Serialization;
 
 namespace RGTools.App.Core;
 
-public class ConfigService
+public sealed class ConfigService : IConfigService
 {
-    private static readonly string ConfigPath = Path.Combine(AppContext.BaseDirectory, "rgtools.config.json");
-
     public AppSettings Current { get; private set; } = new();
 
     public async Task LoadAsync()
     {
-        if (!File.Exists(ConfigPath)) return;
-
         try
         {
-            using var stream = new FileStream(ConfigPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            AppPaths.EnsureCreated();
+
+            if (!File.Exists(AppPaths.ConfigFile)) return;
+
+            await using var stream = new FileStream(AppPaths.ConfigFile, FileMode.Open, FileAccess.Read, FileShare.Read);
             Current = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppSettings)
                       ?? new AppSettings();
         }
         catch (Exception ex)
         {
-            LogService.Log($"[CONFIG] Load error: {ex.Message}");
+            LogService.Log("[CONFIG] Load error", ex);
             Current = new AppSettings();
         }
     }
@@ -32,22 +32,23 @@ public class ConfigService
         try
         {
             Current = newSettings;
-            using var stream = new FileStream(ConfigPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AppPaths.EnsureCreated();
+
+            await using var stream = new FileStream(AppPaths.ConfigFile, FileMode.Create, FileAccess.Write, FileShare.None);
             await JsonSerializer.SerializeAsync(stream, Current, AppJsonContext.Default.AppSettings);
         }
         catch (Exception ex)
         {
-            LogService.Log($"[CONFIG] Save error: {ex.Message}");
+            LogService.Log("[CONFIG] Save error", ex);
         }
     }
 }
 
 [JsonSerializable(typeof(AppSettings))]
-[JsonSerializable(typeof(LmStudioResponse))]
-[JsonSerializable(typeof(LmStudioChatRequest))]
 [JsonSourceGenerationOptions(WriteIndented = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    UseStringEnumConverter = true)]
 internal partial class AppJsonContext : JsonSerializerContext
 {
 }

@@ -4,7 +4,7 @@ using System.Windows.Controls;
 
 namespace RGTools.App.Core;
 
-public class JumpboxService(ConfigService config)
+public class JumpboxService(IConfigService config) : IJumpboxService
 {
     public async Task LaunchAsync()
     {

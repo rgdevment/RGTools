@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using RGTools.App.Core;
 
@@ -6,14 +5,16 @@ namespace RGTools.App.Views;
 
 public partial class DashboardView : Window
 {
-    private readonly ConfigService _config;
-    private readonly DnsGuardianService _guardian;
-    private readonly VpnService _vpnService;
-    private readonly CopilotService _copilotService;
-    private readonly JumpboxService _jumpboxService;
-    private FileSystemWatcher? _fileWatcher;
+    private readonly IConfigService _config;
+    private readonly IDnsGuardianService _guardian;
+    private readonly IVpnService _vpnService;
+    private readonly IJumpboxService _jumpboxService;
 
-    public DashboardView(ConfigService config, DnsGuardianService guardian, VpnService vpnService)
+    public DashboardView(
+        IConfigService config,
+        IDnsGuardianService guardian,
+        IVpnService vpnService,
+        IJumpboxService jumpboxService)
     {
         LogService.Log("[UI] Initializing DashboardView components...");
         try
@@ -23,19 +24,13 @@ public partial class DashboardView : Window
             _config = config;
             _guardian = guardian;
             _vpnService = vpnService;
-            _copilotService = new CopilotService(_config);
+            _jumpboxService = jumpboxService;
 
             ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
+            ChkStartup.IsChecked = _config.Current.StartWithWindows;
 
             _vpnService.StatusChanged += OnVpnStatusChanged;
             _vpnService.ConnectionChanged += OnVpnConnectionChanged;
-
-            _jumpboxService = new JumpboxService(_config);
-            _vpnService.StatusChanged += OnVpnStatusChanged;
-
-            ChkStartup.IsChecked = _config.Current.StartWithWindows;
-
-            Loaded += OnDashboardLoaded;
 
             UpdateVpnUi(_vpnService.IsActive);
             LogService.Log("[UI] DashboardView initialized successfully.");
@@ -83,12 +78,6 @@ public partial class DashboardView : Window
         }
     }
 
-    private void OnDashboardLoaded(object sender, RoutedEventArgs e)
-    {
-        LogService.Log("[UI] Dashboard loaded into view.");
-        RefreshMeetingFiles();
-    }
-
     private void OnVpnStatusChanged(bool isActive)
     {
         LogService.Log($"[VPN EVENT] Status received: {isActive}");
@@ -101,7 +90,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 660 : 600;
+        Height = isActive ? 410 : 320;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -174,137 +163,11 @@ public partial class DashboardView : Window
         }
     }
 
-    private async void BtnWorkOff_Click(object sender, RoutedEventArgs e)
-    {
-        LogService.Log("[UI] Work Off sequence initiated.");
-        BtnWorkOff.IsEnabled = false;
-        var originalContent = BtnWorkOff.Content;
-        BtnWorkOff.Content = "Cerrando...";
-
-        try
-        {
-            var workService = new WorkService(_vpnService);
-            await workService.SwitchToWorkOffAsync();
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[WORKOFF ERROR]", ex);
-        }
-        finally
-        {
-            BtnWorkOff.Content = originalContent;
-            BtnWorkOff.IsEnabled = true;
-            LogService.Log("[UI] Work Off sequence completed.");
-        }
-    }
-
-    private async void BtnCopilot_Click(object sender, RoutedEventArgs e)
-    {
-        LogService.Log("[UI] Meet Copilot launch requested.");
-        BtnCopilot.IsEnabled = false;
-        var prevContent = BtnCopilot.Content;
-        BtnCopilot.Content = "Preparando...";
-
-        try
-        {
-            await Task.Run(async () => await _copilotService.LaunchAsync());
-
-            RefreshMeetingFiles();
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[COPILOT UI ERROR]", ex);
-            MessageBox.Show("Error al iniciar Meet Copilot.");
-        }
-        finally
-        {
-            BtnCopilot.Content = prevContent;
-            BtnCopilot.IsEnabled = true;
-        }
-    }
-
-    private async void BtnResetPath_Click(object sender, RoutedEventArgs e)
-    {
-        LogService.Log("[UI] Manual path reset requested.");
-        try
-        {
-            await _config.SaveAsync(_config.Current with { CopilotFolderPath = null });
-            RefreshMeetingFiles();
-
-            MessageBox.Show(
-                "Ruta reiniciada.\nSe solicitará una nueva al iniciar Copilot.",
-                "Configuración", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[UI ERROR] Path reset failed", ex);
-        }
-    }
-
-    private void RefreshMeetingFiles()
-    {
-        Dispatcher.Invoke(() =>
-        {
-            LogService.Log("[UI] Refreshing meeting logs list...");
-            try
-            {
-                var files = _copilotService.GetMeetingFiles();
-                CmbCopilotOptions.ItemsSource = files;
-
-                if (files is { Count: > 0 })
-                {
-                    if (CmbCopilotOptions.SelectedIndex == -1)
-                        CmbCopilotOptions.SelectedIndex = 0;
-                }
-                else
-                {
-                    CmbCopilotOptions.SelectedIndex = -1;
-                }
-            }
-            catch (Exception ex)
-            {
-                LogService.Log("[UI ERROR] Failed to refresh meeting list", ex);
-            }
-        });
-    }
-
-    private void BtnOpenMeeting_Click(object sender, RoutedEventArgs e)
-    {
-        if (CmbCopilotOptions.SelectedItem is FileInfo selectedFile)
-        {
-            LogService.Log($"[UI] Opening file: {selectedFile.Name}");
-            _copilotService.OpenMeetingFile(selectedFile.FullName);
-        }
-    }
-
-    private void SetupFolderWatcher()
-    {
-        string? path = _config.Current.CopilotFolderPath;
-
-        if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) return;
-
-        _fileWatcher = new FileSystemWatcher(path)
-        {
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-            EnableRaisingEvents = true
-        };
-
-        _fileWatcher.Created += (s, e) => RefreshMeetingFiles();
-        _fileWatcher.Deleted += (s, e) => RefreshMeetingFiles();
-        _fileWatcher.Renamed += (s, e) => RefreshMeetingFiles();
-    }
-
     private void BtnClose_Click(object sender, RoutedEventArgs e)
     {
         LogService.Log("[UI] Closing Dashboard...");
         _vpnService.StatusChanged -= OnVpnStatusChanged;
         _vpnService.ConnectionChanged -= OnVpnConnectionChanged;
-
-        if (_fileWatcher != null)
-        {
-            _fileWatcher.EnableRaisingEvents = false;
-            _fileWatcher.Dispose();
-        }
 
         this.Close();
     }

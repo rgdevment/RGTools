@@ -1,0 +1,58 @@
+# index.yaml — ROUTER del proyecto.
+# La IA lee ESTE archivo primero y salta a la sección exacta de PLAN.md que necesita,
+# sin tener que recorrer todo el plan cada vez. El detalle completo vive en PLAN.md (§1-§6).
+proyecto: "RGTools — Optimizer & GameGuard"
+plataforma: "Windows 11 · .NET 10 · WPF tray · requireAdministrator (manifest)"
+estado_global: "Fase 0 completa (build OK Debug+Release; smoke test de arranque OK) · pendiente test funcional manual (ver navegacion.como_probar)"
+ultima_revision: "2026-05-30"
+fuente_detalle: "PLAN.md"
+
+reglas:
+  codigo: "sin comentarios; nombres autoexplicativos"
+  git: "NUNCA commit/push/tag — lo ejecuta el usuario a mano"
+  idioma: "código en inglés; comunicación en español"
+  alcance: "solo Windows 11; cambios aditivos, no romper lo que funciona"
+
+# --- Estado escaneable: para esto NO hace falta abrir PLAN.md ---
+servicios:
+  DnsGuardianService: { prioridad: core, estado: conservar-intacto, interfaz: IDnsGuardianService }
+  VpnService:         { prioridad: core, estado: activo, interfaz: IVpnService, nota: "privacidad — el corp no entra al equipo personal" }
+  JumpboxService:     { prioridad: core, estado: activo, interfaz: IJumpboxService, nota: "ligado a VPN" }
+  CopilotService:     { prioridad: ultimo, estado: legacy-no-funciona, nota: "fuera de UI y DI; clase queda en repo para retomar al final" }
+  WorkService:        { prioridad: obsoleto, estado: legacy, reemplazo: perfiles-fase2, nota: "fuera de UI y DI" }
+  StartupService:     { prioridad: media, estado: se-mantiene }
+  ConfigService:      { estado: reescrito, persistencia: "%APPDATA%/RGTools" }
+
+fases:
+  fase0_fundacion:    { estado: hecho, falta: [proyecto-tests] }
+  fase1_optimizacion: { estado: pendiente }
+  fase2_perfiles:     { estado: pendiente, modos: [Work, Gaming, Zen, KillAll] }
+  fase3_healthcheck:  { estado: pendiente }
+
+decisiones:
+  comentarios: cero
+  arquitectura: "Generic Host + DI"
+  operaciones_riesgosas: "rollback transaccional + opt-in obligatorio"
+  notificaciones: "H.NotifyIcon (no WindowsAppSDK/MSIX)"
+  config_vieja: "no se migra (defaults seguros)"
+
+invasivas_requieren_optin: [editar-hosts, gpu-priority-hklm, apagar-monitor, nagle-off]
+
+# --- NAVEGACIÓN: a qué sección de PLAN.md ir según la tarea (abre solo esa) ---
+navegacion:
+  auditoria_y_deuda:  { plan_seccion: "§1. Auditoría",        cuando: "entender el estado actual y los bugs ya resueltos" }
+  arquitectura:       { plan_seccion: "§2. Arquitectura",      cuando: "DI, contratos IMode, patrón de rollback transaccional" }
+  fase1_optimizacion: { plan_seccion: "§3 > FASE 1",           cuando: "optimizar lo existente (async/CT, fugas, arranque<2s)" }
+  fase2_modos:        { plan_seccion: "§3 > FASE 2",           cuando: "implementar Work/Gaming/Zen/KillAll — spec literal de cada modo" }
+  fase3_health:       { plan_seccion: "§3 > FASE 3",           cuando: "implementar HealthCheckService" }
+  desviaciones:       { plan_seccion: "§4. Desviaciones",      cuando: "límites conocidos (notificaciones, temperatura, opt-in)" }
+  progreso:           { plan_seccion: "§5. Estado de progreso", cuando: "ver o actualizar el checklist de avance" }
+  como_probar:        { plan_seccion: "§6. Cómo probar",       cuando: "build + smoke test + checklist funcional manual" }
+
+mapa_archivos:
+  composition_root: "RGTools.App/App.xaml.cs"
+  abstracciones:    "RGTools.App/Core/Abstractions/*.cs"
+  config:           "RGTools.App/Core/{AppPaths,AppSettings,ConfigService}.cs"
+  infra:            "RGTools.App/Core/{NotificationService,UserConsentService,SystemStateStore}.cs"
+  core_services:    "RGTools.App/Core/{DnsGuardianService,VpnService,JumpboxService}.cs"
+  ui:               "RGTools.App/{App.xaml.cs, ViewModels/TrayViewModel.cs, Views/DashboardView.xaml.cs}"

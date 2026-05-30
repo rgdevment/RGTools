@@ -5,9 +5,7 @@ namespace RGTools.App.Core;
 
 public static class LogService
 {
-    private static readonly string LogDir = Path.Combine(
-        AppContext.BaseDirectory,
-        "logs");
+    private static readonly string LogDir = AppPaths.LogsDir;
 
     private static readonly string LogPath = Path.Combine(LogDir, "rgtools.log");
     private static readonly string BackupPath = Path.Combine(LogDir, "rgtools.bak");

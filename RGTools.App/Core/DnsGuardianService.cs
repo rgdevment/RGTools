@@ -5,7 +5,7 @@ using System.Net.Sockets;
 
 namespace RGTools.App.Core;
 
-public class DnsGuardianService : IDisposable
+public class DnsGuardianService : IDnsGuardianService
 {
     private const string TargetDns = "192.168.10.1";
     private const int CheckIntervalMinutes = 5;

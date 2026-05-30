@@ -6,7 +6,7 @@ using System.Net.Sockets;
 
 namespace RGTools.App.Core;
 
-public class VpnService : IDisposable
+public class VpnService : IVpnService
 {
     private readonly PeriodicTimer _timer = new(TimeSpan.FromMilliseconds(500));
     private readonly CancellationTokenSource _cts = new();
@@ -108,6 +108,10 @@ public class VpnService : IDisposable
             }
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            LogService.LogCrash("[VPN] CRITICAL: MonitorLoop crashed", ex);
+        }
     }
 
     private void UpdateConnectivity(bool isActive)
