@@ -7,7 +7,13 @@ public sealed class SystemStateStore : ISystemStateStore
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    private static string PathFor(string key) => Path.Combine(AppPaths.StatesDir, $"{key}.json");
+    private readonly string _statesDir;
+
+    public SystemStateStore() : this(AppPaths.StatesDir) { }
+
+    public SystemStateStore(string statesDir) => _statesDir = statesDir;
+
+    private string PathFor(string key) => Path.Combine(_statesDir, $"{key}.json");
 
     public bool Exists(string key) => File.Exists(PathFor(key));
 
@@ -15,7 +21,7 @@ public sealed class SystemStateStore : ISystemStateStore
     {
         try
         {
-            AppPaths.EnsureCreated();
+            Directory.CreateDirectory(_statesDir);
             await using var stream = new FileStream(PathFor(key), FileMode.Create, FileAccess.Write, FileShare.None);
             await JsonSerializer.SerializeAsync(stream, state, Options);
         }

@@ -1,23 +1,16 @@
 using System.Diagnostics;
-using System.Windows;
-using System.Windows.Controls;
 
 namespace RGTools.App.Core;
 
-public class JumpboxService(IConfigService config) : IJumpboxService
+public sealed class JumpboxService : IJumpboxService
 {
-    public async Task LaunchAsync()
+    public async Task<JumpboxResult> LaunchAsync(string path)
     {
-        string? path = config.Current.JumboxFolderPath;
-
         if (string.IsNullOrWhiteSpace(path))
-        {
-            path = PromptForPath();
-            if (string.IsNullOrWhiteSpace(path)) return;
-            await config.SaveAsync(config.Current with { JumboxFolderPath = path });
-        }
+            return new JumpboxResult(false, "Ruta WSL2 no especificada.");
 
-        if (!await ValidateWslEnvironmentAsync(path)) return;
+        var validation = await ValidateWslEnvironmentAsync(path);
+        if (!validation.Success) return validation;
 
         var psi = new ProcessStartInfo
         {
@@ -29,50 +22,17 @@ public class JumpboxService(IConfigService config) : IJumpboxService
 
         using var process = Process.Start(psi);
         LogService.Log($"[JUMPBOX] Process detached and memory released for path: {path}");
+        return new JumpboxResult(true);
     }
 
-    private string? PromptForPath()
-    {
-        string example = "/home/mario/code/github_work/jumbox";
-        string inputPath = string.Empty;
-
-        // Diálogo nativo WPF construido al vuelo
-        Window dialog = new Window
-        {
-            Title = "Configuración Jumpbox",
-            Width = 400,
-            Height = 180,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            WindowStyle = WindowStyle.ToolWindow,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 18)),
-            Foreground = System.Windows.Media.Brushes.White,
-            ResizeMode = ResizeMode.NoResize
-        };
-
-        StackPanel stack = new StackPanel { Margin = new Thickness(20) };
-        stack.Children.Add(new TextBlock { Text = "Ruta WSL2 (ej: /home/.../jumbox):", Margin = new Thickness(0, 0, 0, 10) });
-
-        TextBox txtInput = new TextBox { Text = example, Padding = new Thickness(5), Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 37, 38)), Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(1) };
-        stack.Children.Add(txtInput);
-
-        Button btnOk = new Button { Content = "Aceptar", Margin = new Thickness(0, 15, 0, 0), Height = 30, IsDefault = true };
-        btnOk.Click += (s, e) => { inputPath = txtInput.Text; dialog.DialogResult = true; };
-        stack.Children.Add(btnOk);
-
-        dialog.Content = stack;
-
-        return dialog.ShowDialog() == true ? inputPath : null;
-    }
-
-    private async Task<bool> ValidateWslEnvironmentAsync(string path)
+    private static async Task<JumpboxResult> ValidateWslEnvironmentAsync(string path)
     {
         try
         {
             LogService.Log($"[JUMPBOX] Pre-flight check in: {path}");
 
-            // Simplified: check for script and .venv directory only
-            var checkCommand = $"[ -f jumbox.py ] || (echo 'MISSING_FILE' && exit 1); " +
-                               $"[ -d .venv ] || (echo 'MISSING_VENV' && exit 2)";
+            var checkCommand = "[ -f jumbox.py ] || (echo 'MISSING_FILE' && exit 1); " +
+                               "[ -d .venv ] || (echo 'MISSING_VENV' && exit 2)";
 
             var psi = new ProcessStartInfo
             {
@@ -85,11 +45,13 @@ public class JumpboxService(IConfigService config) : IJumpboxService
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return false;
+            if (process == null) return new JumpboxResult(false, "No se pudo iniciar WSL2.");
 
-            string stdout = await process.StandardOutput.ReadToEndAsync();
-            string stderr = await process.StandardError.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
+            string stdout = await stdoutTask;
+            string stderr = await stderrTask;
 
             if (process.ExitCode != 0)
             {
@@ -104,18 +66,16 @@ public class JumpboxService(IConfigService config) : IJumpboxService
                     _ => "Fallo de comunicación con WSL2."
                 };
 
-                MessageBox.Show($"Error de validación:\n\n{detail}",
-                    "Jumpbox Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
+                return new JumpboxResult(false, detail);
             }
 
             LogService.Log("[JUMPBOX] Basic validation passed.");
-            return true;
+            return new JumpboxResult(true);
         }
         catch (Exception ex)
         {
             LogService.Log("[JUMPBOX] Validation exception", ex);
-            return false;
+            return new JumpboxResult(false, "Error al validar el entorno WSL2.");
         }
     }
 }

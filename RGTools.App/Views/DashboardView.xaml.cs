@@ -46,6 +46,7 @@ public partial class DashboardView : Window
 
             UpdateModeUi(_modeManager.Active);
             UpdateVpnUi(_vpnService.IsActive);
+            Loaded += OnDashboardLoaded;
             LogService.Log("[UI] DashboardView initialized successfully.");
         }
         catch (Exception ex)
@@ -93,6 +94,24 @@ public partial class DashboardView : Window
         }
     }
 
+    private async void OnDashboardLoaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            bool realState = await _startup.IsEnabledAsync();
+            if (realState != (ChkStartup.IsChecked ?? false))
+            {
+                ChkStartup.IsChecked = realState;
+                await _config.SaveAsync(_config.Current with { StartWithWindows = realState });
+                LogService.Log($"[UI] Startup checkbox reconciled to real task state: {realState}");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[UI] Startup reconcile failed", ex);
+        }
+    }
+
     private void OnVpnStatusChanged(bool isActive)
     {
         LogService.Log($"[VPN EVENT] Status received: {isActive}");
@@ -116,13 +135,23 @@ public partial class DashboardView : Window
     {
         LogService.Log("[UI] Launching Database Tunnel via WSL2...");
 
+        string? path = _config.Current.JumboxFolderPath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = PromptForJumpboxPath();
+            if (string.IsNullOrWhiteSpace(path)) return;
+            await _config.SaveAsync(_config.Current with { JumboxFolderPath = path });
+        }
+
         BtnJumpbox.IsEnabled = false;
         var originalContent = BtnJumpbox.Content;
         BtnJumpbox.Content = "Validando...";
 
         try
         {
-            await _jumpboxService.LaunchAsync();
+            var result = await _jumpboxService.LaunchAsync(path);
+            if (!result.Success)
+                MessageBox.Show(result.Error ?? "Error al conectar con WSL2.", "Jumpbox", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch (Exception ex)
         {
@@ -134,6 +163,45 @@ public partial class DashboardView : Window
             BtnJumpbox.Content = originalContent;
             BtnJumpbox.IsEnabled = true;
         }
+    }
+
+    private string? PromptForJumpboxPath()
+    {
+        const string example = "/home/mario/code/github_work/jumbox";
+        string inputPath = string.Empty;
+
+        var dialog = new Window
+        {
+            Title = "Configuración Jumpbox",
+            Width = 400,
+            Height = 180,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            WindowStyle = WindowStyle.ToolWindow,
+            Background = new SolidColorBrush(Color.FromRgb(18, 18, 18)),
+            Foreground = Brushes.White,
+            ResizeMode = ResizeMode.NoResize,
+            Owner = this
+        };
+
+        var stack = new StackPanel { Margin = new Thickness(20) };
+        stack.Children.Add(new TextBlock { Text = "Ruta WSL2 (ej: /home/.../jumbox):", Margin = new Thickness(0, 0, 0, 10) });
+
+        var txtInput = new TextBox
+        {
+            Text = example,
+            Padding = new Thickness(5),
+            Background = new SolidColorBrush(Color.FromRgb(37, 37, 38)),
+            Foreground = Brushes.White,
+            BorderThickness = new Thickness(1)
+        };
+        stack.Children.Add(txtInput);
+
+        var btnOk = new Button { Content = "Aceptar", Margin = new Thickness(0, 15, 0, 0), Height = 30, IsDefault = true };
+        btnOk.Click += (_, _) => { inputPath = txtInput.Text; dialog.DialogResult = true; };
+        stack.Children.Add(btnOk);
+
+        dialog.Content = stack;
+        return dialog.ShowDialog() == true ? inputPath : null;
     }
 
     private async void BtnVpn_Click(object sender, RoutedEventArgs e)

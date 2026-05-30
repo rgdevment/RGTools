@@ -1,6 +1,8 @@
 namespace RGTools.App.Core;
 
+public record JumpboxResult(bool Success, string? Error = null);
+
 public interface IJumpboxService
 {
-    Task LaunchAsync();
+    Task<JumpboxResult> LaunchAsync(string path);
 }

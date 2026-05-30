@@ -7,6 +7,11 @@ namespace RGTools.App.Core;
 public sealed class ConfigService : IConfigService
 {
     private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private readonly string _configFile;
+
+    public ConfigService() : this(AppPaths.ConfigFile) { }
+
+    public ConfigService(string configFile) => _configFile = configFile;
 
     public AppSettings Current { get; private set; } = new();
 
@@ -14,11 +19,11 @@ public sealed class ConfigService : IConfigService
     {
         try
         {
-            AppPaths.EnsureCreated();
+            Directory.CreateDirectory(Path.GetDirectoryName(_configFile)!);
 
-            if (!File.Exists(AppPaths.ConfigFile)) return;
+            if (!File.Exists(_configFile)) return;
 
-            await using var stream = new FileStream(AppPaths.ConfigFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var stream = new FileStream(_configFile, FileMode.Open, FileAccess.Read, FileShare.Read);
             Current = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppSettings)
                       ?? new AppSettings();
         }
@@ -34,9 +39,9 @@ public sealed class ConfigService : IConfigService
         await _saveLock.WaitAsync();
         try
         {
-            AppPaths.EnsureCreated();
+            Directory.CreateDirectory(Path.GetDirectoryName(_configFile)!);
 
-            await using (var stream = new FileStream(AppPaths.ConfigFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            await using (var stream = new FileStream(_configFile, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 await JsonSerializer.SerializeAsync(stream, newSettings, AppJsonContext.Default.AppSettings);
             }
