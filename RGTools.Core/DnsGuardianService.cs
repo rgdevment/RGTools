@@ -16,8 +16,14 @@ public class DnsGuardianService : IDnsGuardianService
     private CancellationTokenSource? _cts;
     private ManagementEventWatcher? _networkWatcher;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly Lock _stateLock = new();
+    private bool _disposed;
 
-    public bool IsRunning => _cts != null;
+    public bool IsRunning
+    {
+        get { lock (_stateLock) return _cts != null; }
+    }
+
     public event Action<bool>? StatusChanged;
 
     public void Start()
@@ -25,18 +31,25 @@ public class DnsGuardianService : IDnsGuardianService
         try
         {
             LogService.Log("[Guardian] Start() called.");
-            if (_cts != null)
-            {
-                LogService.Log("[Guardian] Already running, ignoring Start().");
-                return;
-            }
 
-            _cts = new CancellationTokenSource();
+            CancellationToken token;
+            lock (_stateLock)
+            {
+                if (_disposed) return;
+                if (_cts != null)
+                {
+                    LogService.Log("[Guardian] Already running, ignoring Start().");
+                    return;
+                }
+
+                _cts = new CancellationTokenSource();
+                token = _cts.Token;
+            }
             LogService.Log("[Guardian] CancellationTokenSource created.");
 
             StartWmiListener();
             LogService.Log("[Guardian] Starting background loop task...");
-            Task.Run(() => LoopAsync(_cts.Token));
+            Task.Run(() => LoopAsync(token));
 
             StatusChanged?.Invoke(true);
             LogService.Log("[Guardian] Service Started successfully.");
@@ -50,15 +63,23 @@ public class DnsGuardianService : IDnsGuardianService
 
     public void Stop()
     {
-        if (_cts == null) return;
+        CancellationTokenSource? cts;
+        ManagementEventWatcher? watcher;
 
-        _cts.Cancel();
-        _cts.Dispose();
-        _cts = null;
+        lock (_stateLock)
+        {
+            if (_cts == null) return;
+            cts = _cts;
+            _cts = null;
+            watcher = _networkWatcher;
+            _networkWatcher = null;
+        }
 
-        _networkWatcher?.Stop();
-        _networkWatcher?.Dispose();
-        _networkWatcher = null;
+        cts.Cancel();
+        cts.Dispose();
+
+        watcher?.Stop();
+        watcher?.Dispose();
 
         StatusChanged?.Invoke(false);
         LogService.Log("[Guardian] Service Stopped.");
@@ -76,9 +97,16 @@ public class DnsGuardianService : IDnsGuardianService
             _networkWatcher = new ManagementEventWatcher(query);
             _networkWatcher.EventArrived += async (s, e) =>
             {
-                LogService.Log("[Guardian] WMI network change event detected.");
-                await Task.Delay(2000);
-                await CheckAndRestoreDnsAsync("WmiEvent");
+                try
+                {
+                    LogService.Log("[Guardian] WMI network change event detected.");
+                    await Task.Delay(2000);
+                    await CheckAndRestoreDnsAsync("WmiEvent");
+                }
+                catch (Exception ex)
+                {
+                    LogService.LogCrash("[Guardian] WMI event handler failed", ex);
+                }
             };
             _networkWatcher.Start();
             LogService.Log("[Guardian] WMI listener started successfully.");
@@ -119,11 +147,20 @@ public class DnsGuardianService : IDnsGuardianService
 
     private async Task CheckAndRestoreDnsAsync(string source)
     {
+        if (_disposed) return;
+
         LogService.Log($"[Guardian] ({source}) Check initiated.");
 
-        if (!await _lock.WaitAsync(0))
+        try
         {
-            LogService.Log($"[Guardian] ({source}) Lock busy, skipping check.");
+            if (!await _lock.WaitAsync(0))
+            {
+                LogService.Log($"[Guardian] ({source}) Lock busy, skipping check.");
+                return;
+            }
+        }
+        catch (ObjectDisposedException)
+        {
             return;
         }
 
@@ -162,7 +199,8 @@ public class DnsGuardianService : IDnsGuardianService
         }
         finally
         {
-            _lock.Release();
+            try { _lock.Release(); }
+            catch (ObjectDisposedException) { }
         }
     }
 
@@ -259,16 +297,17 @@ public class DnsGuardianService : IDnsGuardianService
             using Process? p = Process.Start(psi);
             if (p != null)
             {
+                var stdoutTask = p.StandardOutput.ReadToEndAsync();
+                var stderrTask = p.StandardError.ReadToEndAsync();
                 await p.WaitForExitAsync();
+                string stderr = await stderrTask;
+                await stdoutTask;
+
                 LogService.Log($"[Guardian] Process exited: code {p.ExitCode}");
 
-                if (p.ExitCode != 0)
+                if (p.ExitCode != 0 && !string.IsNullOrWhiteSpace(stderr))
                 {
-                    var stderr = await p.StandardError.ReadToEndAsync();
-                    if (!string.IsNullOrWhiteSpace(stderr))
-                    {
-                        LogService.Log($"[Guardian] Process error output: {stderr}");
-                    }
+                    LogService.Log($"[Guardian] Process error output: {stderr}");
                 }
             }
         }
@@ -280,7 +319,15 @@ public class DnsGuardianService : IDnsGuardianService
 
     public void Dispose()
     {
+        lock (_stateLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+
         Stop();
-        _lock.Dispose();
+
+        try { _lock.Dispose(); }
+        catch (ObjectDisposedException) { }
     }
 }

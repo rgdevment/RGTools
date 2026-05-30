@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using RGTools.App.Core;
 
 namespace RGTools.App.Views;
@@ -9,12 +11,18 @@ public partial class DashboardView : Window
     private readonly IDnsGuardianService _guardian;
     private readonly IVpnService _vpnService;
     private readonly IJumpboxService _jumpboxService;
+    private readonly IStartupService _startup;
+    private readonly IModeManager _modeManager;
+    private readonly IKillAllService _killAll;
 
     public DashboardView(
         IConfigService config,
         IDnsGuardianService guardian,
         IVpnService vpnService,
-        IJumpboxService jumpboxService)
+        IJumpboxService jumpboxService,
+        IStartupService startup,
+        IModeManager modeManager,
+        IKillAllService killAll)
     {
         LogService.Log("[UI] Initializing DashboardView components...");
         try
@@ -25,13 +33,18 @@ public partial class DashboardView : Window
             _guardian = guardian;
             _vpnService = vpnService;
             _jumpboxService = jumpboxService;
+            _startup = startup;
+            _modeManager = modeManager;
+            _killAll = killAll;
 
             ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
             ChkStartup.IsChecked = _config.Current.StartWithWindows;
 
             _vpnService.StatusChanged += OnVpnStatusChanged;
             _vpnService.ConnectionChanged += OnVpnConnectionChanged;
+            _modeManager.ModeChanged += OnModeChanged;
 
+            UpdateModeUi(_modeManager.Active);
             UpdateVpnUi(_vpnService.IsActive);
             LogService.Log("[UI] DashboardView initialized successfully.");
         }
@@ -68,7 +81,9 @@ public partial class DashboardView : Window
         try
         {
             await _config.SaveAsync(_config.Current with { StartWithWindows = isChecked });
-            StartupService.SetStartup(isChecked);
+
+            if (!await _startup.SetStartupAsync(isChecked))
+                throw new InvalidOperationException("schtasks no pudo aplicar el cambio.");
         }
         catch (Exception ex)
         {
@@ -90,7 +105,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 410 : 320;
+        Height = isActive ? 635 : 560;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -163,13 +178,83 @@ public partial class DashboardView : Window
         }
     }
 
+    private async void BtnMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string tag) return;
+        if (!Enum.TryParse<ProfileKind>(tag, out var kind)) return;
+
+        LogService.Log($"[UI-MODE] Switch requested: {kind}");
+        SetModeButtonsEnabled(false);
+        try
+        {
+            await _modeManager.SwitchToAsync(kind);
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[UI-MODE] Switch failed", ex);
+            MessageBox.Show($"No se pudo cambiar al perfil {kind}.");
+        }
+        finally
+        {
+            SetModeButtonsEnabled(true);
+            UpdateModeUi(_modeManager.Active);
+        }
+    }
+
+    private async void BtnKillAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("¿Apagar todo y cerrar RGTools?", "Apagar Todo",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        LogService.Log("[UI] Kill All requested.");
+        try
+        {
+            await _killAll.ExecuteAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[UI] Kill All failed", ex);
+        }
+    }
+
+    private void OnModeChanged(ProfileKind active)
+    {
+        Dispatcher.Invoke(() => UpdateModeUi(active));
+    }
+
+    private void UpdateModeUi(ProfileKind active)
+    {
+        SetModeButton(BtnWork, active == ProfileKind.Work);
+        SetModeButton(BtnGaming, active == ProfileKind.Gaming);
+        SetModeButton(BtnZen, active == ProfileKind.Zen);
+    }
+
+    private void SetModeButton(Button btn, bool isActive)
+    {
+        btn.Foreground = isActive ? (Brush)FindResource("Accent") : (Brush)FindResource("TextMain");
+        btn.FontWeight = isActive ? FontWeights.Bold : FontWeights.Normal;
+    }
+
+    private void SetModeButtonsEnabled(bool enabled)
+    {
+        BtnWork.IsEnabled = enabled;
+        BtnGaming.IsEnabled = enabled;
+        BtnZen.IsEnabled = enabled;
+    }
+
     private void BtnClose_Click(object sender, RoutedEventArgs e)
     {
         LogService.Log("[UI] Closing Dashboard...");
+        this.Close();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
         _vpnService.StatusChanged -= OnVpnStatusChanged;
         _vpnService.ConnectionChanged -= OnVpnConnectionChanged;
-
-        this.Close();
+        _modeManager.ModeChanged -= OnModeChanged;
+        base.OnClosed(e);
     }
 
     protected override void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)

@@ -3,9 +3,10 @@
 # sin tener que recorrer todo el plan cada vez. El detalle completo vive en PLAN.md (§1-§6).
 proyecto: "RGTools — Optimizer & GameGuard"
 plataforma: "Windows 11 · .NET 10 · WPF tray · requireAdministrator (manifest)"
-estado_global: "Fase 0 completa (build OK Debug+Release; smoke test de arranque OK) · pendiente test funcional manual (ver navegacion.como_probar)"
+estado_global: "Fases 0-3 + auditoría + tests completas (9/9 verdes; perfiles + health check; 🔴 corregidos; DnsGuardian endurecido) · pendiente: test funcional manual"
 ultima_revision: "2026-05-30"
 fuente_detalle: "PLAN.md"
+solucion: "3 proyectos — RGTools.Core (lib, lógica) · RGTools.App (WPF tray) · RGTools.Tests (xUnit+NSubstitute). Core extraído para testear sin XAML."
 
 reglas:
   codigo: "sin comentarios; nombres autoexplicativos"
@@ -25,9 +26,11 @@ servicios:
 
 fases:
   fase0_fundacion:    { estado: hecho, falta: [proyecto-tests] }
-  fase1_optimizacion: { estado: pendiente }
-  fase2_perfiles:     { estado: pendiente, modos: [Work, Gaming, Zen, KillAll] }
-  fase3_healthcheck:  { estado: pendiente }
+  fase1_optimizacion: { estado: hecho }
+  fase2_perfiles:     { estado: hecho, modos: [Work, Gaming, Zen, KillAll] }
+  fase3_healthcheck:  { estado: hecho }
+  auditoria:          { estado: hecho, detalle: "PLAN.md §7", dnsguardian: "endurecido (lock/try-catch/_disposed)" }
+  tests:              { estado: hecho, framework: "xUnit + NSubstitute", cobertura: "ModeManager (6) + UserConsentService (3) = 9 verdes" }
 
 decisiones:
   comentarios: cero
@@ -48,11 +51,15 @@ navegacion:
   desviaciones:       { plan_seccion: "§4. Desviaciones",      cuando: "límites conocidos (notificaciones, temperatura, opt-in)" }
   progreso:           { plan_seccion: "§5. Estado de progreso", cuando: "ver o actualizar el checklist de avance" }
   como_probar:        { plan_seccion: "§6. Cómo probar",       cuando: "build + smoke test + checklist funcional manual" }
+  auditoria:          { plan_seccion: "§7. Auditoría",          cuando: "hallazgos por severidad, qué se arregló y qué queda" }
 
 mapa_archivos:
-  composition_root: "RGTools.App/App.xaml.cs"
-  abstracciones:    "RGTools.App/Core/Abstractions/*.cs"
-  config:           "RGTools.App/Core/{AppPaths,AppSettings,ConfigService}.cs"
-  infra:            "RGTools.App/Core/{NotificationService,UserConsentService,SystemStateStore}.cs"
-  core_services:    "RGTools.App/Core/{DnsGuardianService,VpnService,JumpboxService}.cs"
+  composition_root: "RGTools.App/App.xaml.cs (Host + DI)"
+  abstracciones:    "RGTools.Core/Abstractions/*.cs"
+  config:           "RGTools.Core/{AppPaths,AppSettings,ConfigService}.cs"
+  infra:            "RGTools.Core/{NotificationService,UserConsentService,SystemStateStore,ProcessRunner}.cs"
+  core_services:    "RGTools.Core/{DnsGuardianService,VpnService,JumpboxService,PowerPlanService,WorkloadGuardService,StartupService}.cs"
+  modos:            "RGTools.Core/Modes/{ModeManager,WorkModeService,GamingModeService,ZenModeService,KillAllService}.cs"
+  health:           "RGTools.Core/HealthCheckService.cs"
   ui:               "RGTools.App/{App.xaml.cs, ViewModels/TrayViewModel.cs, Views/DashboardView.xaml.cs}"
+  tests:            "RGTools.Tests/{ModeManagerTests,UserConsentServiceTests}.cs"

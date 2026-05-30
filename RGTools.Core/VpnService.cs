@@ -23,9 +23,23 @@ public class VpnService : IVpnService
     public event Action<bool>? StatusChanged;
     public event Action<bool>? ConnectionChanged;
 
-    public bool IsActive => Process.GetProcesses()
-        .Any(p => p.ProcessName.Contains("Forti", StringComparison.OrdinalIgnoreCase) ||
-                  p.ProcessName.StartsWith("fc", StringComparison.OrdinalIgnoreCase));
+    public bool IsActive
+    {
+        get
+        {
+            var processes = Process.GetProcesses();
+            try
+            {
+                return processes.Any(p =>
+                    p.ProcessName.Contains("Forti", StringComparison.OrdinalIgnoreCase) ||
+                    p.ProcessName.StartsWith("fc", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                foreach (var p in processes) p.Dispose();
+            }
+        }
+    }
 
     public bool IsConnected
     {

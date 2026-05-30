@@ -6,6 +6,8 @@ namespace RGTools.App.Core;
 
 public sealed class ConfigService : IConfigService
 {
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     public AppSettings Current { get; private set; } = new();
 
     public async Task LoadAsync()
@@ -29,17 +31,25 @@ public sealed class ConfigService : IConfigService
 
     public async Task SaveAsync(AppSettings newSettings)
     {
+        await _saveLock.WaitAsync();
         try
         {
-            Current = newSettings;
             AppPaths.EnsureCreated();
 
-            await using var stream = new FileStream(AppPaths.ConfigFile, FileMode.Create, FileAccess.Write, FileShare.None);
-            await JsonSerializer.SerializeAsync(stream, Current, AppJsonContext.Default.AppSettings);
+            await using (var stream = new FileStream(AppPaths.ConfigFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await JsonSerializer.SerializeAsync(stream, newSettings, AppJsonContext.Default.AppSettings);
+            }
+
+            Current = newSettings;
         }
         catch (Exception ex)
         {
             LogService.Log("[CONFIG] Save error", ex);
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 }

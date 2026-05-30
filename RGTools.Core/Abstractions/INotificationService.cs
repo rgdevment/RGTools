@@ -9,5 +9,7 @@ public enum NotificationLevel
 
 public interface INotificationService
 {
+    NotificationLevel MinimumLevel { get; set; }
+
     void Notify(string title, string message, NotificationLevel level = NotificationLevel.Info);
 }

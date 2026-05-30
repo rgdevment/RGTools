@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="RGTools.App/RGTools.App.csproj" />
+  <Project Path="RGTools.Core/RGTools.Core.csproj" />
+  <Project Path="RGTools.Tests/RGTools.Tests.csproj" />
 </Solution>

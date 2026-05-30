@@ -1,7 +1,7 @@
 <Window x:Class="RGTools.App.Views.DashboardView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="RGTools" Height="320" Width="360"
+        Title="RGTools" Height="560" Width="360"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize">
@@ -72,6 +72,27 @@
             </Setter>
         </Style>
 
+        <Style x:Key="ModeButton" TargetType="Button" BasedOn="{StaticResource DashboardButtonBase}">
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bdr" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#333" BorderThickness="1">
+                            <Grid Margin="15,0">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bdr" Property="Background" Value="#2D2D30"/>
+                                <Setter TargetName="bdr" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="ModernToggle" TargetType="CheckBox">
             <Setter Property="Template">
                 <Setter.Value>
@@ -128,7 +149,15 @@
                         Visibility="Collapsed"
                         Click="BtnJumpbox_Click"/>
 
-                <Separator Background="#222" Margin="0,20,0,20" Height="1" BorderThickness="0"/>
+                <Separator Background="#222" Margin="0,15,0,18" Height="1" BorderThickness="0"/>
+
+                <TextBlock Text="PERFILES" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
+                <Button x:Name="BtnWork" Content="💼 Trabajo" Tag="Work" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
+                <Button x:Name="BtnGaming" Content="🎮 Gaming" Tag="Gaming" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
+                <Button x:Name="BtnZen" Content="🧘 Zen" Tag="Zen" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
+                <Button x:Name="BtnKillAll" Content="⏻ Apagar Todo" Style="{StaticResource ModeButton}" Click="BtnKillAll_Click" Foreground="{StaticResource StatusOff}"/>
+
+                <Separator Background="#222" Margin="0,18,0,18" Height="1" BorderThickness="0"/>
 
                 <TextBlock Text="SEGURIDAD" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,15"/>
 

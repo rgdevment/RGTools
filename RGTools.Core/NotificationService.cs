@@ -7,11 +7,15 @@ public sealed class NotificationService : INotificationService
 {
     private TaskbarIcon? _icon;
 
+    public NotificationLevel MinimumLevel { get; set; } = NotificationLevel.Info;
+
     public void Attach(TaskbarIcon icon) => _icon = icon;
 
     public void Notify(string title, string message, NotificationLevel level = NotificationLevel.Info)
     {
         LogService.Log($"[NOTIFY:{level}] {title} — {message}");
+
+        if (level < MinimumLevel) return;
 
         var app = Application.Current;
         if (app == null) return;

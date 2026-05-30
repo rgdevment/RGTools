@@ -48,6 +48,13 @@ public partial class App : Application
                 LogService.Log("[CONFIG] DNS Guardian is disabled in config.");
             }
 
+            var modeManager = _host.Services.GetRequiredService<IModeManager>();
+            if (modeManager.Active != ProfileKind.Work)
+            {
+                LogService.Log($"[MODE] Recovering from previous '{modeManager.Active}' session -> Work");
+                await modeManager.SwitchToAsync(ProfileKind.Work);
+            }
+
             InitializeTrayIcon();
         }
         catch (Exception ex)
@@ -67,10 +74,23 @@ public partial class App : Application
         services.AddSingleton<NotificationService>();
         services.AddSingleton<INotificationService>(sp => sp.GetRequiredService<NotificationService>());
         services.AddSingleton<IUserConsentService, UserConsentService>();
+        services.AddSingleton<IProcessRunner, ProcessRunner>();
 
+        services.AddSingleton<IStartupService, StartupService>();
         services.AddSingleton<IDnsGuardianService, DnsGuardianService>();
         services.AddSingleton<IVpnService, VpnService>();
         services.AddSingleton<IJumpboxService, JumpboxService>();
+
+        services.AddSingleton<IPowerPlanService, PowerPlanService>();
+        services.AddSingleton<IWorkloadGuard, WorkloadGuardService>();
+        services.AddSingleton<IMode, WorkModeService>();
+        services.AddSingleton<IMode, GamingModeService>();
+        services.AddSingleton<IMode, ZenModeService>();
+        services.AddSingleton<IModeManager, ModeManager>();
+        services.AddSingleton<IKillAllService, KillAllService>();
+
+        services.AddSingleton<HealthCheckService>();
+        services.AddHostedService(sp => sp.GetRequiredService<HealthCheckService>());
 
         services.AddSingleton<TrayViewModel>();
         services.AddTransient<DashboardView>();
@@ -134,7 +154,18 @@ public partial class App : Application
 
         _host.Services.GetRequiredService<NotificationService>().Attach(_trayIcon);
 
+        var health = _host.Services.GetRequiredService<HealthCheckService>();
+        health.StatusChanged += OnHealthStatusChanged;
+
         LogService.Log("[UI] Tray Icon ready with VPN and DNS monitoring.");
+    }
+
+    private void OnHealthStatusChanged(string tooltip)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_trayIcon != null) _trayIcon.ToolTipText = tooltip;
+        });
     }
 
     private void OpenDashboardWindow()
