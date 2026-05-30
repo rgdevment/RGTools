@@ -1,12 +1,13 @@
 # index.yaml — ROUTER del proyecto.
 # La IA lee ESTE archivo primero y salta a la sección exacta de PLAN.md que necesita,
-# sin tener que recorrer todo el plan cada vez. El detalle completo vive en PLAN.md (§1-§6).
+# sin recorrer todo el plan cada vez. El detalle completo vive en PLAN.md (§1-§8).
 proyecto: "RGTools — Optimizer & GameGuard"
 plataforma: "Windows 11 · .NET 10 · WPF tray · requireAdministrator (manifest)"
-estado_global: "Fases 0-3 + auditoría + tests completas (9/9 verdes; perfiles + health check; 🔴 corregidos; DnsGuardian endurecido) · pendiente: test funcional manual"
+estado_global: "Fases 0-3 + 2 auditorías + tests (19/19). Perfiles resilientes a crash/corte de luz (sanitize en arranque, escritura atómica, sin acumular planes de energía). Optimizado para Intel 265K + RTX 5070 Ti + 64GB + UPS. Pendiente: test funcional manual"
 ultima_revision: "2026-05-30"
 fuente_detalle: "PLAN.md"
 solucion: "3 proyectos — RGTools.Core (lib, lógica) · RGTools.App (WPF tray) · RGTools.Tests (xUnit+NSubstitute). Core extraído para testear sin XAML."
+hardware_usuario: "Intel Core Ultra 7 265K · ASUS TUF Z890 · 64GB DDR5 6400 · RTX 5070 Ti 16GB · 2 monitores (34\" 180Hz + LG vertical) · SSD PCIe 5.0 · UPS Forza 1500VA"
 
 reglas:
   codigo: "sin comentarios; nombres autoexplicativos"
@@ -14,52 +15,59 @@ reglas:
   idioma: "código en inglés; comunicación en español"
   alcance: "solo Windows 11; cambios aditivos, no romper lo que funciona"
 
-# --- Estado escaneable: para esto NO hace falta abrir PLAN.md ---
 servicios:
-  DnsGuardianService: { prioridad: core, estado: conservar-intacto, interfaz: IDnsGuardianService }
+  DnsGuardianService: { prioridad: core, estado: endurecido-logica-intacta, interfaz: IDnsGuardianService, nota: "siempre ON; KillAll no lo toca" }
   VpnService:         { prioridad: core, estado: activo, interfaz: IVpnService, nota: "privacidad — el corp no entra al equipo personal" }
-  JumpboxService:     { prioridad: core, estado: activo, interfaz: IJumpboxService, nota: "ligado a VPN" }
-  CopilotService:     { prioridad: ultimo, estado: legacy-no-funciona, nota: "fuera de UI y DI; clase queda en repo para retomar al final" }
-  WorkService:        { prioridad: obsoleto, estado: legacy, reemplazo: perfiles-fase2, nota: "fuera de UI y DI" }
-  StartupService:     { prioridad: media, estado: se-mantiene }
-  ConfigService:      { estado: reescrito, persistencia: "%APPDATA%/RGTools" }
+  JumpboxService:     { prioridad: core, estado: activo, interfaz: IJumpboxService, nota: "desacoplado de UI; LaunchAsync(path)->JumpboxResult" }
+  StartupService:     { prioridad: media, estado: async, nota: "checkbox sincronizado con tarea real via IsEnabledAsync" }
+  ConfigService:      { estado: reescrito, persistencia: "%APPDATA%/RGTools", nota: "path inyectable para tests" }
+  CopilotService:     { estado: eliminado, nota: "Meet borrado; se reharía desde cero si vuelve" }
+  WorkService:        { estado: eliminado, nota: "reemplazado por perfiles" }
 
 fases:
-  fase0_fundacion:    { estado: hecho, falta: [proyecto-tests] }
+  fase0_fundacion:    { estado: hecho }
   fase1_optimizacion: { estado: hecho }
   fase2_perfiles:     { estado: hecho, modos: [Work, Gaming, Zen, KillAll] }
   fase3_healthcheck:  { estado: hecho }
-  auditoria:          { estado: hecho, detalle: "PLAN.md §7", dnsguardian: "endurecido (lock/try-catch/_disposed)" }
-  tests:              { estado: hecho, framework: "xUnit + NSubstitute", cobertura: "ModeManager (6) + UserConsentService (3) = 9 verdes" }
+  auditoria_general:  { estado: hecho, detalle: "PLAN.md §7", dnsguardian: "endurecido (lock/try-catch/_disposed)" }
+  auditoria_riesgos:  { estado: hecho, detalle: "PLAN.md §8 — resiliencia crash/corte de luz + optimización hardware real" }
+  tests:              { estado: hecho, framework: "xUnit + NSubstitute", cobertura: "ModeManager (11) + UserConsent (3) + Config (3) + SystemStateStore (3) = 19 verdes" }
+
+perfiles:
+  Work:    "estado base; restaura WSearch/GPU registry/toasts/plan de energía"
+  Gaming:  "cierra Docker/WSL2/LM Studio/Slack/Discord/Spark/WhatsApp/qBittorrent (cierre ordenado+force); NO Teams/VSCode/navegador; High Performance; silencia toasts Windows; GPU Priority [opt-in]; NO auto-abre launchers; monitor 2º se mantiene"
+  Zen:     "silencia notif no críticas + Pomodoro 25/5; bloqueo hosts [opt-in] por marcador de línea"
+  KillAll: "'Restaurar Estado Limpio': vuelve a Work + apaga VPN; NO cierra app; NO toca DNS"
 
 decisiones:
   comentarios: cero
-  arquitectura: "Generic Host + DI"
-  operaciones_riesgosas: "rollback transaccional + opt-in obligatorio"
+  arquitectura: "Generic Host + DI; Core/UI separados"
+  operaciones_riesgosas: "rollback transaccional + opt-in + escritura atómica + sanitize en arranque"
   notificaciones: "H.NotifyIcon (no WindowsAppSDK/MSIX)"
-  config_vieja: "no se migra (defaults seguros)"
+  power_plan: "High Performance estándar (NO duplicatescheme — acumulaba planes basura)"
+  monitor_secundario: "NO se apaga (panel vertical de consulta)"
+  sysmain: "no se toca (SSD + 64GB lo hacen irrelevante)"
 
-invasivas_requieren_optin: [editar-hosts, gpu-priority-hklm, apagar-monitor, nagle-off]
+invasivas_requieren_optin: [editar-hosts, gpu-priority-hklm]
+staged_no_implementado: [nagle-off, apagar-monitor-2, monitor-gaming-45s, temperaturas]
 
-# --- NAVEGACIÓN: a qué sección de PLAN.md ir según la tarea (abre solo esa) ---
 navegacion:
-  auditoria_y_deuda:  { plan_seccion: "§1. Auditoría",        cuando: "entender el estado actual y los bugs ya resueltos" }
-  arquitectura:       { plan_seccion: "§2. Arquitectura",      cuando: "DI, contratos IMode, patrón de rollback transaccional" }
-  fase1_optimizacion: { plan_seccion: "§3 > FASE 1",           cuando: "optimizar lo existente (async/CT, fugas, arranque<2s)" }
-  fase2_modos:        { plan_seccion: "§3 > FASE 2",           cuando: "implementar Work/Gaming/Zen/KillAll — spec literal de cada modo" }
-  fase3_health:       { plan_seccion: "§3 > FASE 3",           cuando: "implementar HealthCheckService" }
-  desviaciones:       { plan_seccion: "§4. Desviaciones",      cuando: "límites conocidos (notificaciones, temperatura, opt-in)" }
-  progreso:           { plan_seccion: "§5. Estado de progreso", cuando: "ver o actualizar el checklist de avance" }
-  como_probar:        { plan_seccion: "§6. Cómo probar",       cuando: "build + smoke test + checklist funcional manual" }
-  auditoria:          { plan_seccion: "§7. Auditoría",          cuando: "hallazgos por severidad, qué se arregló y qué queda" }
+  auditoria_y_deuda:  { plan_seccion: "§1. Auditoría",        cuando: "estado actual y bugs resueltos" }
+  arquitectura:       { plan_seccion: "§2. Arquitectura",      cuando: "DI, IMode, patrón rollback transaccional" }
+  fases:              { plan_seccion: "§3. Fases",             cuando: "qué hace cada fase/perfil exactamente" }
+  desviaciones:       { plan_seccion: "§4. Desviaciones",      cuando: "límites conocidos y staged" }
+  progreso:           { plan_seccion: "§5. Estado de progreso", cuando: "checklist + estructura de archivos" }
+  como_probar:        { plan_seccion: "§6. Cómo probar",       cuando: "build + tests + smoke + funcional" }
+  auditoria_general:  { plan_seccion: "§7. Auditoría",          cuando: "30 hallazgos, qué se arregló" }
+  auditoria_riesgos:  { plan_seccion: "§8. Auditoría riesgos",  cuando: "crash/corte de luz/transiciones + hardware" }
 
 mapa_archivos:
   composition_root: "RGTools.App/App.xaml.cs (Host + DI)"
   abstracciones:    "RGTools.Core/Abstractions/*.cs"
-  config:           "RGTools.Core/{AppPaths,AppSettings,ConfigService}.cs"
+  config:           "RGTools.Core/{AppPaths,AppSettings,ConfigService,StateKeys}.cs"
   infra:            "RGTools.Core/{NotificationService,UserConsentService,SystemStateStore,ProcessRunner}.cs"
-  core_services:    "RGTools.Core/{DnsGuardianService,VpnService,JumpboxService,PowerPlanService,WorkloadGuardService,StartupService}.cs"
+  core_services:    "RGTools.Core/{DnsGuardianService,VpnService,JumpboxService,StartupService}.cs"
+  soporte_modos:    "RGTools.Core/{PowerPlanService,GpuPriorityService,WorkloadGuardService,NotificationSilencerService,HealthCheckService}.cs"
   modos:            "RGTools.Core/Modes/{ModeManager,WorkModeService,GamingModeService,ZenModeService,KillAllService}.cs"
-  health:           "RGTools.Core/HealthCheckService.cs"
   ui:               "RGTools.App/{App.xaml.cs, ViewModels/TrayViewModel.cs, Views/DashboardView.xaml.cs}"
-  tests:            "RGTools.Tests/{ModeManagerTests,UserConsentServiceTests}.cs"
+  tests:            "RGTools.Tests/{ModeManager,UserConsentService,ConfigService,SystemStateStore}Tests.cs"

@@ -155,7 +155,7 @@
                 <Button x:Name="BtnWork" Content="💼 Trabajo" Tag="Work" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
                 <Button x:Name="BtnGaming" Content="🎮 Gaming" Tag="Gaming" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
                 <Button x:Name="BtnZen" Content="🧘 Zen" Tag="Zen" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
-                <Button x:Name="BtnKillAll" Content="⏻ Apagar Todo" Style="{StaticResource ModeButton}" Click="BtnKillAll_Click" Foreground="{StaticResource StatusOff}"/>
+                <Button x:Name="BtnKillAll" Content="🧹 Restaurar Estado Limpio" Style="{StaticResource ModeButton}" Click="BtnKillAll_Click" Foreground="{StaticResource StatusOff}"/>
 
                 <Separator Background="#222" Margin="0,18,0,18" Height="1" BorderThickness="0"/>
 

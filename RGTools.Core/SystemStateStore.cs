@@ -22,8 +22,17 @@ public sealed class SystemStateStore : ISystemStateStore
         try
         {
             Directory.CreateDirectory(_statesDir);
-            await using var stream = new FileStream(PathFor(key), FileMode.Create, FileAccess.Write, FileShare.None);
-            await JsonSerializer.SerializeAsync(stream, state, Options);
+
+            string finalPath = PathFor(key);
+            string tempPath = finalPath + ".tmp";
+
+            await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await JsonSerializer.SerializeAsync(stream, state, Options);
+                await stream.FlushAsync();
+            }
+
+            File.Move(tempPath, finalPath, overwrite: true);
         }
         catch (Exception ex)
         {

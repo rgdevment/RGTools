@@ -49,10 +49,10 @@ public partial class App : Application
             }
 
             var modeManager = _host.Services.GetRequiredService<IModeManager>();
-            if (modeManager.Active != ProfileKind.Work)
+            if (modeManager.Active != ProfileKind.Work || modeManager.IsDirty)
             {
-                LogService.Log($"[MODE] Recovering from previous '{modeManager.Active}' session -> Work");
-                await modeManager.SwitchToAsync(ProfileKind.Work);
+                LogService.Log($"[MODE] Startup sanitize (active={modeManager.Active}, dirty={modeManager.IsDirty}) -> Work");
+                await modeManager.SanitizeToWorkAsync();
             }
 
             InitializeTrayIcon();
@@ -82,7 +82,9 @@ public partial class App : Application
         services.AddSingleton<IJumpboxService, JumpboxService>();
 
         services.AddSingleton<IPowerPlanService, PowerPlanService>();
+        services.AddSingleton<IGpuPriorityService, GpuPriorityService>();
         services.AddSingleton<IWorkloadGuard, WorkloadGuardService>();
+        services.AddSingleton<INotificationSilencer, NotificationSilencerService>();
         services.AddSingleton<IMode, WorkModeService>();
         services.AddSingleton<IMode, GamingModeService>();
         services.AddSingleton<IMode, ZenModeService>();

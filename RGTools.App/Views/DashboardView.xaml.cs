@@ -271,11 +271,13 @@ public partial class DashboardView : Window
 
     private async void BtnKillAll_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("¿Apagar todo y cerrar RGTools?", "Apagar Todo",
-                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        if (MessageBox.Show(
+                "¿Restaurar a estado limpio?\n\n• Perfil Trabajo (revierte Gaming/Zen)\n• VPN apagada\n• DNS Guardian sigue activo\n• La app permanece abierta",
+                "Restaurar Estado Limpio",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
 
-        LogService.Log("[UI] Kill All requested.");
+        LogService.Log("[UI] Clean-state reset requested.");
         try
         {
             await _killAll.ExecuteAsync();

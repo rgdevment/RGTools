@@ -4,7 +4,7 @@ namespace RGTools.App.Core;
 
 public sealed class ZenModeService : IMode
 {
-    private const string HostsStateKey = "zen-hosts";
+    private const string HostsStateKey = StateKeys.ZenHosts;
     private const string HostsConsentId = "zen.hosts-block";
     private const string HostsMarker = "# RGTools-Zen";
     private static readonly string HostsPath = Path.Combine(
@@ -59,11 +59,11 @@ public sealed class ZenModeService : IMode
     {
         try
         {
-            string original = await File.ReadAllTextAsync(HostsPath);
-            await _store.SaveAsync(HostsStateKey, original);
+            await StripMarkedLinesAsync();
 
             var lines = hosts.Select(h => $"127.0.0.1 {h} {HostsMarker}");
             await File.AppendAllTextAsync(HostsPath, Environment.NewLine + string.Join(Environment.NewLine, lines) + Environment.NewLine);
+            await _store.SaveAsync(HostsStateKey, true);
             LogService.Log($"[ZEN] Blocked {hosts.Count} host(s).");
         }
         catch (Exception ex)
@@ -78,15 +78,25 @@ public sealed class ZenModeService : IMode
 
         try
         {
-            var original = await _store.LoadAsync<string>(HostsStateKey);
-            if (original != null) await File.WriteAllTextAsync(HostsPath, original);
+            await StripMarkedLinesAsync();
             _store.Clear(HostsStateKey);
-            LogService.Log("[ZEN] Hosts restored.");
+            LogService.Log("[ZEN] Hosts restored (marked lines removed).");
         }
         catch (Exception ex)
         {
             LogService.Log("[ZEN] Hosts restore failed", ex);
         }
+    }
+
+    private static async Task StripMarkedLinesAsync()
+    {
+        if (!File.Exists(HostsPath)) return;
+
+        var lines = await File.ReadAllLinesAsync(HostsPath);
+        var kept = lines.Where(l => !l.Contains(HostsMarker, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        if (kept.Length != lines.Length)
+            await File.WriteAllLinesAsync(HostsPath, kept);
     }
 
     private void StartPomodoro()
