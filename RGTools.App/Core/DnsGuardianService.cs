@@ -7,7 +7,7 @@ namespace RGTools.App.Core;
 
 public class DnsGuardianService : IDisposable
 {
-    private const string TargetDns = "192.168.50.100";
+    private const string TargetDns = "192.168.10.1";
     private const int CheckIntervalMinutes = 5;
     private const bool EnableDohEncryption = false; // Set to true to enable DNS-over-HTTPS encryption
 
