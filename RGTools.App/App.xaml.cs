@@ -48,12 +48,7 @@ public partial class App : Application
                 LogService.Log("[CONFIG] DNS Guardian is disabled in config.");
             }
 
-            var modeManager = _host.Services.GetRequiredService<IModeManager>();
-            if (modeManager.Active != ProfileKind.Work || modeManager.IsDirty)
-            {
-                LogService.Log($"[MODE] Startup sanitize (active={modeManager.Active}, dirty={modeManager.IsDirty}) -> Work");
-                await modeManager.SanitizeToWorkAsync();
-            }
+            await _host.Services.GetRequiredService<IModeManager>().RestoreSessionAsync();
 
             InitializeTrayIcon();
         }
@@ -208,6 +203,16 @@ public partial class App : Application
 
         if (_host != null)
         {
+            try
+            {
+                _host.Services.GetService<IModeManager>()?.MarkCleanShutdown();
+                LogService.Log("[APP] Clean shutdown marked (profile persists).");
+            }
+            catch (Exception ex)
+            {
+                LogService.Log("[APP] Mark clean shutdown error", ex);
+            }
+
             try
             {
                 _host.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();

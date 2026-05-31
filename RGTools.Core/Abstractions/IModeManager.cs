@@ -13,4 +13,8 @@ public interface IModeManager
     Task SwitchToAsync(ProfileKind target, CancellationToken ct = default);
 
     Task SanitizeToWorkAsync(CancellationToken ct = default);
+
+    Task RestoreSessionAsync(CancellationToken ct = default);
+
+    void MarkCleanShutdown();
 }

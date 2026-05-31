@@ -62,6 +62,31 @@ public sealed class ModeManager : IModeManager
         }
     }
 
+    public async Task RestoreSessionAsync(CancellationToken ct = default)
+    {
+        bool previousRunCrashed = _store.Exists(StateKeys.RunMarker);
+
+        if (previousRunCrashed)
+        {
+            LogService.Log("[MODE] Previous session did not exit cleanly -> sanitize to Work.");
+            await SanitizeToWorkAsync(ct);
+        }
+        else if (Active != ProfileKind.Work)
+        {
+            LogService.Log($"[MODE] Resuming profile '{Active}' from previous clean session.");
+            ModeChanged?.Invoke(Active);
+        }
+        else if (IsDirty)
+        {
+            LogService.Log("[MODE] Work active but stray snapshots found -> sanitize.");
+            await SanitizeToWorkAsync(ct);
+        }
+
+        await _store.SaveAsync(StateKeys.RunMarker, true);
+    }
+
+    public void MarkCleanShutdown() => _store.Clear(StateKeys.RunMarker);
+
     public async Task SanitizeToWorkAsync(CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);

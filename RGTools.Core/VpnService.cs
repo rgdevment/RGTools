@@ -112,9 +112,9 @@ public class VpnService : IVpnService
                         StatusChanged?.Invoke(currentProcessState);
                     }
 
-                    if (currentLinkState && !_lastLinkState)
+                    if (currentLinkState && !_lastLinkState && currentProcessState)
                     {
-                        LogService.Log("[VPN] Tunnel established. Forcing UI wake...");
+                        LogService.Log("[VPN] Tunnel established while client running. Forcing UI wake...");
                         _ = Task.Run(() => RunEncodedPowerShellAsync(GetGuiLaunchScript()), token);
                     }
                     _lastLinkState = currentLinkState;
