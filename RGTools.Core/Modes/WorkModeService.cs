@@ -5,6 +5,7 @@ public sealed class WorkModeService : IMode
     private readonly IWorkloadGuard _workload;
     private readonly IGpuPriorityService _gpu;
     private readonly INotificationSilencer _silencer;
+    private readonly IHostsBlocker _hosts;
     private readonly IPowerPlanService _power;
     private readonly ISystemStateStore _store;
     private readonly INotificationService _notify;
@@ -13,6 +14,7 @@ public sealed class WorkModeService : IMode
         IWorkloadGuard workload,
         IGpuPriorityService gpu,
         INotificationSilencer silencer,
+        IHostsBlocker hosts,
         IPowerPlanService power,
         ISystemStateStore store,
         INotificationService notify)
@@ -20,6 +22,7 @@ public sealed class WorkModeService : IMode
         _workload = workload;
         _gpu = gpu;
         _silencer = silencer;
+        _hosts = hosts;
         _power = power;
         _store = store;
         _notify = notify;
@@ -38,8 +41,10 @@ public sealed class WorkModeService : IMode
 
         await _gpu.RestoreAsync();
         await _silencer.RestoreAsync();
+        await _hosts.RestoreAsync();
         await _power.RestoreAsync();
 
+        _notify.MinimumLevel = NotificationLevel.Info;
         _notify.Notify("💼 Modo Trabajo", "Estado restaurado · plan equilibrado");
     }
 

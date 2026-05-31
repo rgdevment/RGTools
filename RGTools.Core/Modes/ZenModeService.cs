@@ -1,19 +1,13 @@
-using System.IO;
-
 namespace RGTools.App.Core;
 
-public sealed class ZenModeService : IMode
+public sealed class ZenModeService : IMode, IDisposable
 {
-    private const string HostsStateKey = StateKeys.ZenHosts;
     private const string HostsConsentId = "zen.hosts-block";
-    private const string HostsMarker = "# RGTools-Zen";
-    private static readonly string HostsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers", "etc", "hosts");
 
     private readonly IConfigService _config;
     private readonly IUserConsentService _consent;
     private readonly INotificationService _notify;
-    private readonly ISystemStateStore _store;
+    private readonly IHostsBlocker _hosts;
 
     private CancellationTokenSource? _pomodoroCts;
 
@@ -21,12 +15,12 @@ public sealed class ZenModeService : IMode
         IConfigService config,
         IUserConsentService consent,
         INotificationService notify,
-        ISystemStateStore store)
+        IHostsBlocker hosts)
     {
         _config = config;
         _consent = consent;
         _notify = notify;
-        _store = store;
+        _hosts = hosts;
     }
 
     public ProfileKind Kind => ProfileKind.Zen;
@@ -40,7 +34,7 @@ public sealed class ZenModeService : IMode
                 "Modo Zen — Bloqueo de sitios",
                 $"¿Bloquear {blocked.Count} sitio(s) editando el archivo hosts? Se revierte al salir."))
         {
-            await BlockHostsAsync(blocked);
+            await _hosts.ApplyAsync(blocked);
         }
 
         StartPomodoro();
@@ -51,52 +45,8 @@ public sealed class ZenModeService : IMode
     public async Task DeactivateAsync(CancellationToken ct = default)
     {
         StopPomodoro();
-        await RestoreHostsAsync();
+        await _hosts.RestoreAsync();
         _notify.MinimumLevel = NotificationLevel.Info;
-    }
-
-    private async Task BlockHostsAsync(IReadOnlyList<string> hosts)
-    {
-        try
-        {
-            await StripMarkedLinesAsync();
-
-            var lines = hosts.Select(h => $"127.0.0.1 {h} {HostsMarker}");
-            await File.AppendAllTextAsync(HostsPath, Environment.NewLine + string.Join(Environment.NewLine, lines) + Environment.NewLine);
-            await _store.SaveAsync(HostsStateKey, true);
-            LogService.Log($"[ZEN] Blocked {hosts.Count} host(s).");
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[ZEN] Hosts block failed", ex);
-        }
-    }
-
-    private async Task RestoreHostsAsync()
-    {
-        if (!_store.Exists(HostsStateKey)) return;
-
-        try
-        {
-            await StripMarkedLinesAsync();
-            _store.Clear(HostsStateKey);
-            LogService.Log("[ZEN] Hosts restored (marked lines removed).");
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[ZEN] Hosts restore failed", ex);
-        }
-    }
-
-    private static async Task StripMarkedLinesAsync()
-    {
-        if (!File.Exists(HostsPath)) return;
-
-        var lines = await File.ReadAllLinesAsync(HostsPath);
-        var kept = lines.Where(l => !l.Contains(HostsMarker, StringComparison.OrdinalIgnoreCase)).ToArray();
-
-        if (kept.Length != lines.Length)
-            await File.WriteAllLinesAsync(HostsPath, kept);
     }
 
     private void StartPomodoro()
@@ -131,4 +81,6 @@ public sealed class ZenModeService : IMode
             LogService.Log("[ZEN] Pomodoro loop crashed", ex);
         }
     }
+
+    public void Dispose() => StopPomodoro();
 }

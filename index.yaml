@@ -31,7 +31,8 @@ fases:
   fase3_healthcheck:  { estado: hecho }
   auditoria_general:  { estado: hecho, detalle: "PLAN.md §7", dnsguardian: "endurecido (lock/try-catch/_disposed)" }
   auditoria_riesgos:  { estado: hecho, detalle: "PLAN.md §8 — resiliencia crash/corte de luz + optimización hardware real" }
-  tests:              { estado: hecho, framework: "xUnit + NSubstitute", cobertura: "ModeManager (11) + UserConsent (3) + Config (3) + SystemStateStore (3) = 19 verdes" }
+  tests:              { estado: hecho, framework: "xUnit + NSubstitute", cobertura: "ModeManager (10) + UserConsent (3) + Config (3) + SystemStateStore (3) + HostsRollback (2) = 21 verdes" }
+  auditoria_final:    { estado: hecho, detalle: "3ª pasada Opus; 2 bugs reales corregidos: Work no restauraba hosts de Zen (crash en Zen dejaba sitios bloqueados) + silenciador sobrescribía snapshot. Extraído IHostsBlocker; rollback simétrico" }
 
 perfiles:
   Work:    "estado base; restaura WSearch/GPU registry/toasts/plan de energía"

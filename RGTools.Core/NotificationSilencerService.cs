@@ -16,8 +16,8 @@ public sealed class NotificationSilencerService : INotificationSilencer
     {
         try
         {
-            int previous = ReadToastEnabled();
-            await _store.SaveAsync(StateKey, previous);
+            if (!_store.Exists(StateKey))
+                await _store.SaveAsync(StateKey, ReadToastEnabled());
 
             SetToastEnabled(0);
             LogService.Log("[SILENCER] Windows toast notifications disabled (Do Not Disturb).");

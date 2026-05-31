@@ -85,6 +85,7 @@ public partial class App : Application
         services.AddSingleton<IGpuPriorityService, GpuPriorityService>();
         services.AddSingleton<IWorkloadGuard, WorkloadGuardService>();
         services.AddSingleton<INotificationSilencer, NotificationSilencerService>();
+        services.AddSingleton<IHostsBlocker, HostsBlockerService>();
         services.AddSingleton<IMode, WorkModeService>();
         services.AddSingleton<IMode, GamingModeService>();
         services.AddSingleton<IMode, ZenModeService>();
