@@ -11,7 +11,8 @@ personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gam
 
 1. Ejecuta **`RGTools-Setup-1.0.0.exe`** (carpeta `releases/`).
 2. Acepta el UAC (la app necesita privilegios de administrador).
-3. Marca *"Iniciar RGTools automáticamente con Windows"* si lo quieres en el arranque.
+3. Al terminar, la app queda en la bandeja. El **inicio con Windows** se activa desde el dashboard
+   (toggle *"Iniciar con Windows"*) — el instalador no lo gestiona, para tener una sola fuente de verdad.
 
 El mismo instalador **actualiza** una versión previa (mismo AppId): instala encima conservando tu
 configuración. Para desinstalar: *Configuración → Aplicaciones → RGTools*, o el acceso directo
