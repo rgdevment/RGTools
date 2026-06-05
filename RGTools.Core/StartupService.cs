@@ -17,7 +17,7 @@ public sealed class StartupService : IStartupService
             {
                 string exePath = Environment.ProcessPath
                     ?? throw new InvalidOperationException("Could not determine executable path");
-                args = $"/create /tn \"{TaskName}\" /tr \"'{exePath}'\" /sc onlogon /rl highest /f";
+                args = $"/create /tn \"{TaskName}\" /tr \"\\\"{exePath}\\\"\" /sc onlogon /rl highest /f";
             }
             else
             {
@@ -33,6 +33,14 @@ public sealed class StartupService : IStartupService
         }
     }
 
-    public async Task<bool> IsEnabledAsync()
-        => await _runner.RunAsync("schtasks", $"/query /tn \"{TaskName}\"") == 0;
+    public async Task<bool?> IsEnabledAsync()
+    {
+        int exit = await _runner.RunAsync("schtasks", $"/query /tn \"{TaskName}\"");
+        return exit switch
+        {
+            0 => true,
+            -1 => null,
+            _ => false
+        };
+    }
 }

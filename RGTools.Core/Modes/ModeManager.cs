@@ -39,7 +39,7 @@ public sealed class ModeManager : IModeManager
             IsTransitioning = true;
             LogService.Log($"[MODE] Switching {Active} -> {target}");
 
-            await _config.SaveAsync(_config.Current with { ActiveProfile = target });
+            await _config.UpdateAsync(s => s with { ActiveProfile = target });
 
             if (_modes.TryGetValue(Active, out var current))
                 await current.DeactivateAsync(ct);
@@ -106,7 +106,7 @@ public sealed class ModeManager : IModeManager
     {
         try
         {
-            await _config.SaveAsync(_config.Current with { ActiveProfile = ProfileKind.Work });
+            await _config.UpdateAsync(s => s with { ActiveProfile = ProfileKind.Work });
             await _modes[ProfileKind.Work].ActivateAsync(ct);
             Active = ProfileKind.Work;
             ModeChanged?.Invoke(ProfileKind.Work);

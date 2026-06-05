@@ -1,7 +1,7 @@
 # RGTools — Optimizer & GameGuard
 
 Herramienta personal de bandeja (system tray) para Windows 11 que protege la privacidad del equipo
-personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gaming / Zen).
+personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gaming).
 
 > **.NET 10 · WPF · requiere Administrador.** App de un solo `.exe`, sin dependencias externas.
 
@@ -35,10 +35,8 @@ Si no lo ves, está en los iconos ocultos (flecha `^`).
 
 | Perfil | Acción |
 |---|---|
-| 💼 **Trabajo** | Estado base. Restaura todo lo que Gaming/Zen hayan modificado. |
-| 🎮 **Gaming** | Cierra Docker/WSL2/LM Studio/Slack/Discord/Spark/WhatsApp/qBittorrent · plan Alto Rendimiento · silencia notificaciones de Windows · GPU Priority (con tu permiso). **No** toca Teams/VS Code/navegador ni abre launchers de juego. |
-| 🧘 **Zen** | Silencia notificaciones no críticas · Pomodoro 25/5 · bloqueo opcional de sitios (archivo hosts). |
-| 🧹 **Restaurar Estado Limpio** | Vuelve a Trabajo y apaga la VPN. DNS sigue activo y la app NO se cierra. |
+| 💼 **Trabajo** | Estado base. Restaura todo lo que Gaming haya modificado. |
+| 🎮 **Gaming** | Cierra Docker (servicio + backend)/WSL2/LM Studio/Slack/Discord/Spark/WhatsApp/qBittorrent · plan Ultimate Performance (con fallback) · silencia notificaciones de Windows · fuerza el refresh máximo del monitor · optimiza red (throttling/Nagle off) · GPU Priority (con tu permiso). **No** toca Teams/VS Code/navegador ni abre launchers de juego. |
 
 Todas las operaciones que tocan el sistema (registro, hosts, plan de energía, servicios) usan
 **snapshot → aplicar → restaurar** con escritura atómica. Si la app se cierra de forma forzada
@@ -53,14 +51,14 @@ Solución de 3 proyectos (.NET 10):
 ```
 RGTools.Core    Librería: toda la lógica (servicios, modos, infraestructura)
 RGTools.App     App WPF de bandeja (composición DI con Generic Host)
-RGTools.Tests   xUnit + NSubstitute (21 tests)
+RGTools.Tests   xUnit + NSubstitute (33 tests)
 ```
 
 ### Compilar y testear
 
 ```powershell
 dotnet build  RGTools.slnx -c Debug      # compilar
-dotnet test   RGTools.slnx               # tests (21/21)
+dotnet test   RGTools.slnx               # tests (33/33)
 ```
 
 ### Generar una nueva versión (release)

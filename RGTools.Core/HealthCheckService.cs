@@ -25,7 +25,7 @@ public sealed class HealthCheckService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await RunChecksAsync();
+            await RunChecksAsync(stoppingToken);
 
             try
             {
@@ -38,14 +38,14 @@ public sealed class HealthCheckService : BackgroundService
         }
     }
 
-    private async Task RunChecksAsync()
+    private async Task RunChecksAsync(CancellationToken token)
     {
         try
         {
             bool dnsOk = _dns.IsRunning;
             long freeGb = GetFreeDiskGb();
             bool diskOk = freeGb < 0 || freeGb >= MinFreeDiskGb;
-            bool netOk = await IsInternetReachableAsync();
+            bool netOk = await IsInternetReachableAsync(token);
 
             string tooltip =
                 $"RGTools — {_modeManager.Active}\n" +
@@ -57,6 +57,9 @@ public sealed class HealthCheckService : BackgroundService
 
             if (!diskOk) LogService.Log($"[HEALTH] Low disk space: {freeGb} GB");
             if (!netOk) LogService.Log("[HEALTH] Internet unreachable (ping 1.1.1.1).");
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
@@ -77,12 +80,12 @@ public sealed class HealthCheckService : BackgroundService
         }
     }
 
-    private static async Task<bool> IsInternetReachableAsync()
+    private static async Task<bool> IsInternetReachableAsync(CancellationToken token)
     {
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync("1.1.1.1", 2000);
+            var reply = await ping.SendPingAsync("1.1.1.1", TimeSpan.FromSeconds(2), cancellationToken: token);
             return reply.Status == IPStatus.Success;
         }
         catch

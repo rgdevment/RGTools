@@ -13,7 +13,6 @@ public partial class DashboardView : Window
     private readonly IJumpboxService _jumpboxService;
     private readonly IStartupService _startup;
     private readonly IModeManager _modeManager;
-    private readonly IKillAllService _killAll;
 
     public DashboardView(
         IConfigService config,
@@ -21,8 +20,7 @@ public partial class DashboardView : Window
         IVpnService vpnService,
         IJumpboxService jumpboxService,
         IStartupService startup,
-        IModeManager modeManager,
-        IKillAllService killAll)
+        IModeManager modeManager)
     {
         LogService.Log("[UI] Initializing DashboardView components...");
         try
@@ -35,7 +33,6 @@ public partial class DashboardView : Window
             _jumpboxService = jumpboxService;
             _startup = startup;
             _modeManager = modeManager;
-            _killAll = killAll;
 
             ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
             ChkStartup.IsChecked = _config.Current.StartWithWindows;
@@ -81,7 +78,7 @@ public partial class DashboardView : Window
 
         try
         {
-            await _config.SaveAsync(_config.Current with { StartWithWindows = isChecked });
+            await _config.UpdateAsync(s => s with { StartWithWindows = isChecked });
 
             if (!await _startup.SetStartupAsync(isChecked))
                 throw new InvalidOperationException("schtasks no pudo aplicar el cambio.");
@@ -98,12 +95,12 @@ public partial class DashboardView : Window
     {
         try
         {
-            bool realState = await _startup.IsEnabledAsync();
-            if (realState != (ChkStartup.IsChecked ?? false))
+            bool? realState = await _startup.IsEnabledAsync();
+            if (realState is bool state && state != (ChkStartup.IsChecked ?? false))
             {
-                ChkStartup.IsChecked = realState;
-                await _config.SaveAsync(_config.Current with { StartWithWindows = realState });
-                LogService.Log($"[UI] Startup checkbox reconciled to real task state: {realState}");
+                ChkStartup.IsChecked = state;
+                await _config.UpdateAsync(s => s with { StartWithWindows = state });
+                LogService.Log($"[UI] Startup checkbox reconciled to real task state: {state}");
             }
         }
         catch (Exception ex)
@@ -124,7 +121,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 635 : 560;
+        Height = isActive ? 531 : 456;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -140,7 +137,7 @@ public partial class DashboardView : Window
         {
             path = PromptForJumpboxPath();
             if (string.IsNullOrWhiteSpace(path)) return;
-            await _config.SaveAsync(_config.Current with { JumboxFolderPath = path });
+            await _config.UpdateAsync(s => s with { JumboxFolderPath = path });
         }
 
         BtnJumpbox.IsEnabled = false;
@@ -232,8 +229,7 @@ public partial class DashboardView : Window
 
         try
         {
-            var newSettings = _config.Current with { DnsGuardianEnabled = isChecked };
-            await _config.SaveAsync(newSettings);
+            await _config.UpdateAsync(s => s with { DnsGuardianEnabled = isChecked });
 
             if (isChecked) _guardian.Start();
             else _guardian.Stop();
@@ -269,25 +265,6 @@ public partial class DashboardView : Window
         }
     }
 
-    private async void BtnKillAll_Click(object sender, RoutedEventArgs e)
-    {
-        if (MessageBox.Show(
-                "¿Restaurar a estado limpio?\n\n• Perfil Trabajo (revierte Gaming/Zen)\n• VPN apagada\n• DNS Guardian sigue activo\n• La app permanece abierta",
-                "Restaurar Estado Limpio",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-            return;
-
-        LogService.Log("[UI] Clean-state reset requested.");
-        try
-        {
-            await _killAll.ExecuteAsync();
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[UI] Kill All failed", ex);
-        }
-    }
-
     private void OnModeChanged(ProfileKind active)
     {
         Dispatcher.Invoke(() => UpdateModeUi(active));
@@ -297,7 +274,6 @@ public partial class DashboardView : Window
     {
         SetModeButton(BtnWork, active == ProfileKind.Work);
         SetModeButton(BtnGaming, active == ProfileKind.Gaming);
-        SetModeButton(BtnZen, active == ProfileKind.Zen);
     }
 
     private void SetModeButton(Button btn, bool isActive)
@@ -310,7 +286,6 @@ public partial class DashboardView : Window
     {
         BtnWork.IsEnabled = enabled;
         BtnGaming.IsEnabled = enabled;
-        BtnZen.IsEnabled = enabled;
     }
 
     private void BtnClose_Click(object sender, RoutedEventArgs e)

@@ -23,8 +23,13 @@ public sealed class UserConsentService : IUserConsentService
 
         if (accepted && remember)
         {
-            var updated = new Dictionary<string, bool>(_config.Current.Consent.Granted) { [operationId] = true };
-            await _config.SaveAsync(_config.Current with { Consent = new ConsentSettings { Granted = updated } });
+            await _config.UpdateAsync(s => s with
+            {
+                Consent = new ConsentSettings
+                {
+                    Granted = new Dictionary<string, bool>(s.Consent.Granted) { [operationId] = true }
+                }
+            });
         }
 
         return accepted;

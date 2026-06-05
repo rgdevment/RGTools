@@ -9,7 +9,7 @@ public class DnsGuardianService : IDnsGuardianService
 {
     private const string TargetDns = "192.168.10.1";
     private const int CheckIntervalMinutes = 5;
-    private const bool EnableDohEncryption = false; // Set to true to enable DNS-over-HTTPS encryption
+    private const bool EnableDohEncryption = false;
 
     private static readonly string? TargetDohTemplate = Environment.GetEnvironmentVariable("PERSONAL_DOH", EnvironmentVariableTarget.Machine);
 
@@ -51,7 +51,7 @@ public class DnsGuardianService : IDnsGuardianService
             LogService.Log("[Guardian] Starting background loop task...");
             Task.Run(() => LoopAsync(token));
 
-            StatusChanged?.Invoke(true);
+            RaiseStatusChanged(true);
             LogService.Log("[Guardian] Service Started successfully.");
         }
         catch (Exception ex)
@@ -81,8 +81,20 @@ public class DnsGuardianService : IDnsGuardianService
         watcher?.Stop();
         watcher?.Dispose();
 
-        StatusChanged?.Invoke(false);
+        RaiseStatusChanged(false);
         LogService.Log("[Guardian] Service Stopped.");
+    }
+
+    private void RaiseStatusChanged(bool state)
+    {
+        try
+        {
+            StatusChanged?.Invoke(state);
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[Guardian] StatusChanged subscriber threw", ex);
+        }
     }
 
     private void StartWmiListener()
@@ -140,8 +152,8 @@ public class DnsGuardianService : IDnsGuardianService
         }
         catch (Exception ex)
         {
-            LogService.LogCrash("[Guardian] CRITICAL: LoopAsync crashed", ex);
-            throw;
+            LogService.LogCrash("[Guardian] CRITICAL: LoopAsync crashed; stopping guardian.", ex);
+            Stop();
         }
     }
 
@@ -206,7 +218,6 @@ public class DnsGuardianService : IDnsGuardianService
 
     private async Task RestoreDnsIpAsync(string interfaceName)
     {
-        // Future-self: Critical - restore IP immediately
         await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
 
         if (EnableDohEncryption && !string.IsNullOrEmpty(TargetDohTemplate))

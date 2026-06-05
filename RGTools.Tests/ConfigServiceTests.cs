@@ -47,9 +47,9 @@ public class ConfigServiceTests : IDisposable
     {
         var svc = new ConfigService(_configFile);
 
-        await svc.SaveAsync(new AppSettings { ActiveProfile = ProfileKind.Zen });
+        await svc.SaveAsync(new AppSettings { ActiveProfile = ProfileKind.Gaming });
 
-        Assert.Equal(ProfileKind.Zen, svc.Current.ActiveProfile);
+        Assert.Equal(ProfileKind.Gaming, svc.Current.ActiveProfile);
     }
 
     [Fact]
@@ -61,5 +61,33 @@ public class ConfigServiceTests : IDisposable
 
         Assert.True(svc.Current.DnsGuardianEnabled);
         Assert.Equal(ProfileKind.Work, svc.Current.ActiveProfile);
+    }
+
+    [Fact]
+    public async Task Update_AppliesMutation_AndPersists()
+    {
+        var svc = new ConfigService(_configFile);
+        await svc.SaveAsync(new AppSettings { ActiveProfile = ProfileKind.Work });
+
+        await svc.UpdateAsync(s => s with { ActiveProfile = ProfileKind.Gaming, StartWithWindows = true });
+
+        Assert.Equal(ProfileKind.Gaming, svc.Current.ActiveProfile);
+        Assert.True(svc.Current.StartWithWindows);
+
+        var reloaded = new ConfigService(_configFile);
+        await reloaded.LoadAsync();
+        Assert.Equal(ProfileKind.Gaming, reloaded.Current.ActiveProfile);
+        Assert.True(reloaded.Current.StartWithWindows);
+    }
+
+    [Fact]
+    public async Task Save_LeavesNoTempFileBehind()
+    {
+        var svc = new ConfigService(_configFile);
+
+        await svc.SaveAsync(new AppSettings { ActiveProfile = ProfileKind.Gaming });
+
+        Assert.True(File.Exists(_configFile));
+        Assert.False(File.Exists(_configFile + ".tmp"));
     }
 }

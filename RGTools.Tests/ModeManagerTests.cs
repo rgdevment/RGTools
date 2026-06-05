@@ -20,6 +20,7 @@ public class ModeManagerTests
         var config = Substitute.For<IConfigService>();
         config.Current.Returns(new AppSettings { ActiveProfile = initial });
         config.SaveAsync(Arg.Any<AppSettings>()).Returns(Task.CompletedTask);
+        config.UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>()).Returns(Task.CompletedTask);
         return config;
     }
 
@@ -33,9 +34,9 @@ public class ModeManagerTests
     [Fact]
     public void Active_DefaultsToConfiguredProfile()
     {
-        var mgr = new ModeManager(new[] { FakeMode(ProfileKind.Work), FakeMode(ProfileKind.Zen) }, FakeConfig(ProfileKind.Zen), FakeStore());
+        var mgr = new ModeManager(new[] { FakeMode(ProfileKind.Work), FakeMode(ProfileKind.Gaming) }, FakeConfig(ProfileKind.Gaming), FakeStore());
 
-        Assert.Equal(ProfileKind.Zen, mgr.Active);
+        Assert.Equal(ProfileKind.Gaming, mgr.Active);
     }
 
     [Fact]
@@ -51,7 +52,7 @@ public class ModeManagerTests
         Assert.Equal(ProfileKind.Gaming, mgr.Active);
         await work.Received(1).DeactivateAsync(Arg.Any<CancellationToken>());
         await gaming.Received(1).ActivateAsync(Arg.Any<CancellationToken>());
-        await config.Received(1).SaveAsync(Arg.Is<AppSettings>(s => s.ActiveProfile == ProfileKind.Gaming));
+        await config.Received(1).UpdateAsync(Arg.Is<Func<AppSettings, AppSettings>>(f => f(new AppSettings()).ActiveProfile == ProfileKind.Gaming));
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public class ModeManagerTests
 
         Received.InOrder(() =>
         {
-            config.SaveAsync(Arg.Is<AppSettings>(s => s.ActiveProfile == ProfileKind.Gaming));
+            config.UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>());
             gaming.ActivateAsync(Arg.Any<CancellationToken>());
         });
     }
@@ -112,12 +113,11 @@ public class ModeManagerTests
     {
         var work = FakeMode(ProfileKind.Work);
         var gaming = FakeMode(ProfileKind.Gaming);
-        var zen = FakeMode(ProfileKind.Zen);
-        zen.ActivateAsync(Arg.Any<CancellationToken>())
+        gaming.ActivateAsync(Arg.Any<CancellationToken>())
            .Returns(Task.FromException(new InvalidOperationException("boom")));
-        var mgr = new ModeManager(new[] { work, gaming, zen }, FakeConfig(ProfileKind.Gaming), FakeStore());
+        var mgr = new ModeManager(new[] { work, gaming }, FakeConfig(ProfileKind.Work), FakeStore());
 
-        await mgr.SwitchToAsync(ProfileKind.Zen);
+        await mgr.SwitchToAsync(ProfileKind.Gaming);
 
         Assert.Equal(ProfileKind.Work, mgr.Active);
         await work.Received(1).ActivateAsync(Arg.Any<CancellationToken>());

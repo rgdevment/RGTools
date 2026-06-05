@@ -4,9 +4,12 @@ namespace RGTools.App.Core;
 
 public sealed class WorkloadGuardService : IWorkloadGuard
 {
+    private const string DockerService = "com.docker.service";
+
     private static readonly string[] ProcessesToClose =
     {
         "Docker Desktop",
+        "com.docker",
         "LM Studio",
         "Slack",
         "Discord",
@@ -19,25 +22,26 @@ public sealed class WorkloadGuardService : IWorkloadGuard
 
     public WorkloadGuardService(IProcessRunner runner) => _runner = runner;
 
-    public async Task<WorkloadSnapshot> SuspendAsync(CancellationToken ct = default)
+    public async Task<WorkloadSnapshot> CaptureAsync(CancellationToken ct = default) => new()
     {
-        var snapshot = new WorkloadSnapshot
-        {
-            WSearchWasRunning = await IsServiceRunningAsync("WSearch", ct)
-        };
+        WSearchWasRunning = await IsServiceRunningAsync("WSearch", ct),
+        DockerServiceWasRunning = await IsServiceRunningAsync(DockerService, ct)
+    };
 
+    public async Task SuspendAsync(CancellationToken ct = default)
+    {
         string nameList = string.Join(",", ProcessesToClose.Select(n => $"'{n}*'"));
 
         await _runner.RunPowerShellAsync(
             "Stop-Service -Name 'WSearch' -Force -ErrorAction SilentlyContinue; " +
+            $"Stop-Service -Name '{DockerService}' -Force -ErrorAction SilentlyContinue; " +
             $"$p = Get-Process {nameList} -ErrorAction SilentlyContinue; " +
             "$p | ForEach-Object { $_.CloseMainWindow() | Out-Null }; " +
             "Start-Sleep -Seconds 3; " +
             $"Get-Process {nameList} -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; " +
             "wsl --shutdown", ct);
 
-        LogService.Log($"[WORKLOAD] Suspended (WSearch={snapshot.WSearchWasRunning}, graceful-then-force: {string.Join(", ", ProcessesToClose)}, WSL2)");
-        return snapshot;
+        LogService.Log($"[WORKLOAD] Suspended (graceful-then-force: {string.Join(", ", ProcessesToClose)}, WSL2)");
     }
 
     public async Task RestoreAsync(WorkloadSnapshot snapshot, CancellationToken ct = default)
@@ -45,7 +49,10 @@ public sealed class WorkloadGuardService : IWorkloadGuard
         if (snapshot.WSearchWasRunning)
             await _runner.RunPowerShellAsync("Start-Service -Name 'WSearch' -ErrorAction SilentlyContinue", ct);
 
-        LogService.Log("[WORKLOAD] Restored WSearch. Las apps cerradas se reabren manualmente.");
+        if (snapshot.DockerServiceWasRunning)
+            await _runner.RunPowerShellAsync($"Start-Service -Name '{DockerService}' -ErrorAction SilentlyContinue", ct);
+
+        LogService.Log("[WORKLOAD] Restored WSearch/Docker service. Closed apps (incl. Docker Desktop) must be reopened manually.");
     }
 
     private async Task<bool> IsServiceRunningAsync(string service, CancellationToken ct)

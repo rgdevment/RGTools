@@ -23,21 +23,22 @@ public class VpnService : IVpnService
     public event Action<bool>? StatusChanged;
     public event Action<bool>? ConnectionChanged;
 
+    private static readonly string[] VpnProcessNames =
+    {
+        "FortiClient", "FortiTray", "FortiSSLVPNdaemon", "FortiESNAC", "FortiProxy"
+    };
+
     public bool IsActive
     {
         get
         {
-            var processes = Process.GetProcesses();
-            try
+            foreach (var name in VpnProcessNames)
             {
-                return processes.Any(p =>
-                    p.ProcessName.Contains("Forti", StringComparison.OrdinalIgnoreCase) ||
-                    p.ProcessName.StartsWith("fc", StringComparison.OrdinalIgnoreCase));
+                var procs = Process.GetProcessesByName(name);
+                try { if (procs.Length > 0) return true; }
+                finally { foreach (var p in procs) p.Dispose(); }
             }
-            finally
-            {
-                foreach (var p in processes) p.Dispose();
-            }
+            return false;
         }
     }
 
@@ -55,6 +56,7 @@ public class VpnService : IVpnService
     {
         _lastProcessState = IsActive;
         _lastLinkState = GetVpnLinkStatus();
+        _ = NormalizeSchedulerAsync();
         _ = MonitorLoopAsync(_cts.Token);
     }
 
@@ -62,24 +64,25 @@ public class VpnService : IVpnService
     {
         if (!await _semaphore.WaitAsync(0)) return;
 
-        string action = IsActive ? "SHUTDOWN" : "STARTUP";
+        bool wasActive = IsActive;
+        string action = wasActive ? "SHUTDOWN" : "STARTUP";
         LogService.Log($"[VPN] {action} sequence initiated.");
 
         try
         {
-            if (IsActive)
-                await RunEncodedPowerShellAsync(GetShutdownScript());
-            else
-                await RunEncodedPowerShellAsync(GetStartupScript());
+            await RunEncodedPowerShellAsync(wasActive ? GetShutdownScript() : GetStartupScript());
 
-            await Task.Delay(2000);
+            await WaitForStateAsync(expected: !wasActive, TimeSpan.FromSeconds(5));
 
+            bool processState;
             lock (_stateLock)
             {
                 _lastProcessState = IsActive;
                 _lastLinkState = GetVpnLinkStatus();
-                StatusChanged?.Invoke(_lastProcessState);
+                processState = _lastProcessState;
             }
+
+            StatusChanged?.Invoke(processState);
         }
         catch (Exception ex)
         {
@@ -88,6 +91,28 @@ public class VpnService : IVpnService
         finally
         {
             _semaphore.Release();
+        }
+    }
+
+    private async Task WaitForStateAsync(bool expected, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (IsActive == expected) return;
+            await Task.Delay(200);
+        }
+    }
+
+    private async Task NormalizeSchedulerAsync()
+    {
+        try
+        {
+            await RunEncodedPowerShellAsync("& sc.exe config 'FA_Scheduler' start= demand >$null 2>&1;");
+        }
+        catch (Exception ex)
+        {
+            LogService.Log($"[VPN] Scheduler normalize failed: {ex.Message}");
         }
     }
 
@@ -104,20 +129,27 @@ public class VpnService : IVpnService
 
                 UpdateConnectivity(currentProcessState);
 
+                bool statusChanged = false;
+                bool launchGui = false;
                 lock (_stateLock)
                 {
                     if (currentProcessState != _lastProcessState)
                     {
                         _lastProcessState = currentProcessState;
-                        StatusChanged?.Invoke(currentProcessState);
+                        statusChanged = true;
                     }
 
                     if (currentLinkState && !_lastLinkState && currentProcessState)
-                    {
-                        LogService.Log("[VPN] Tunnel established while client running. Forcing UI wake...");
-                        _ = Task.Run(() => RunEncodedPowerShellAsync(GetGuiLaunchScript()), token);
-                    }
+                        launchGui = true;
+
                     _lastLinkState = currentLinkState;
+                }
+
+                if (statusChanged) StatusChanged?.Invoke(currentProcessState);
+                if (launchGui)
+                {
+                    LogService.Log("[VPN] Tunnel established while client running. Forcing UI wake...");
+                    _ = Task.Run(() => RunEncodedPowerShellAsync(GetGuiLaunchScript()), token);
                 }
             }
         }

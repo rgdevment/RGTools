@@ -78,14 +78,13 @@ public partial class App : Application
 
         services.AddSingleton<IPowerPlanService, PowerPlanService>();
         services.AddSingleton<IGpuPriorityService, GpuPriorityService>();
+        services.AddSingleton<IDisplayRefreshService, DisplayRefreshService>();
+        services.AddSingleton<IGamingTweaksService, GamingTweaksService>();
         services.AddSingleton<IWorkloadGuard, WorkloadGuardService>();
         services.AddSingleton<INotificationSilencer, NotificationSilencerService>();
-        services.AddSingleton<IHostsBlocker, HostsBlockerService>();
         services.AddSingleton<IMode, WorkModeService>();
         services.AddSingleton<IMode, GamingModeService>();
-        services.AddSingleton<IMode, ZenModeService>();
         services.AddSingleton<IModeManager, ModeManager>();
-        services.AddSingleton<IKillAllService, KillAllService>();
 
         services.AddSingleton<HealthCheckService>();
         services.AddHostedService(sp => sp.GetRequiredService<HealthCheckService>());

@@ -4,8 +4,9 @@ public sealed class WorkModeService : IMode
 {
     private readonly IWorkloadGuard _workload;
     private readonly IGpuPriorityService _gpu;
+    private readonly IDisplayRefreshService _display;
+    private readonly IGamingTweaksService _tweaks;
     private readonly INotificationSilencer _silencer;
-    private readonly IHostsBlocker _hosts;
     private readonly IPowerPlanService _power;
     private readonly ISystemStateStore _store;
     private readonly INotificationService _notify;
@@ -13,16 +14,18 @@ public sealed class WorkModeService : IMode
     public WorkModeService(
         IWorkloadGuard workload,
         IGpuPriorityService gpu,
+        IDisplayRefreshService display,
+        IGamingTweaksService tweaks,
         INotificationSilencer silencer,
-        IHostsBlocker hosts,
         IPowerPlanService power,
         ISystemStateStore store,
         INotificationService notify)
     {
         _workload = workload;
         _gpu = gpu;
+        _display = display;
+        _tweaks = tweaks;
         _silencer = silencer;
-        _hosts = hosts;
         _power = power;
         _store = store;
         _notify = notify;
@@ -40,8 +43,9 @@ public sealed class WorkModeService : IMode
         }
 
         await _gpu.RestoreAsync();
+        await _display.RestoreAsync();
+        await _tweaks.RestoreAsync();
         await _silencer.RestoreAsync();
-        await _hosts.RestoreAsync();
         await _power.RestoreAsync();
 
         _notify.MinimumLevel = NotificationLevel.Info;

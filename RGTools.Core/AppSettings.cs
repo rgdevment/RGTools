@@ -3,8 +3,7 @@ namespace RGTools.App.Core;
 public enum ProfileKind
 {
     Work,
-    Gaming,
-    Zen
+    Gaming
 }
 
 public record AppSettings
@@ -13,7 +12,6 @@ public record AppSettings
     public bool StartWithWindows { get; init; } = false;
     public ProfileKind ActiveProfile { get; init; } = ProfileKind.Work;
     public ConsentSettings Consent { get; init; } = new();
-    public List<string> ZenBlockedHosts { get; init; } = new();
 
     public string? JumboxFolderPath { get; init; }
 }

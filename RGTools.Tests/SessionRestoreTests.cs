@@ -20,6 +20,7 @@ public class SessionRestoreTests
         var config = Substitute.For<IConfigService>();
         config.Current.Returns(new AppSettings { ActiveProfile = initial });
         config.SaveAsync(Arg.Any<AppSettings>()).Returns(Task.CompletedTask);
+        config.UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>()).Returns(Task.CompletedTask);
         return config;
     }
 

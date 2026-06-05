@@ -7,4 +7,6 @@ public interface IConfigService
     Task LoadAsync();
 
     Task SaveAsync(AppSettings newSettings);
+
+    Task UpdateAsync(Func<AppSettings, AppSettings> mutate);
 }

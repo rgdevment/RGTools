@@ -15,14 +15,34 @@ public sealed class JumpboxService : IJumpboxService
         var psi = new ProcessStartInfo
         {
             FileName = "wsl.exe",
-            Arguments = $"--cd {path} zsh -i -c \"uv run python3 jumbox.py\"",
             UseShellExecute = true,
             WindowStyle = ProcessWindowStyle.Normal
         };
+        AddWslArgs(psi, path, "uv run python3 jumbox.py");
 
-        using var process = Process.Start(psi);
-        LogService.Log($"[JUMPBOX] Process detached and memory released for path: {path}");
-        return new JumpboxResult(true);
+        try
+        {
+            using var process = Process.Start(psi);
+            if (process == null) return new JumpboxResult(false, "No se pudo iniciar WSL2.");
+
+            LogService.Log($"[JUMPBOX] WSL2 launched for path: {path}");
+            return new JumpboxResult(true);
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[JUMPBOX] Launch failed", ex);
+            return new JumpboxResult(false, "No se pudo iniciar WSL2.");
+        }
+    }
+
+    private static void AddWslArgs(ProcessStartInfo psi, string path, string command)
+    {
+        psi.ArgumentList.Add("--cd");
+        psi.ArgumentList.Add(path);
+        psi.ArgumentList.Add("zsh");
+        psi.ArgumentList.Add("-i");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(command);
     }
 
     private static async Task<JumpboxResult> ValidateWslEnvironmentAsync(string path)
@@ -37,12 +57,12 @@ public sealed class JumpboxService : IJumpboxService
             var psi = new ProcessStartInfo
             {
                 FileName = "wsl.exe",
-                Arguments = $"--cd {path} zsh -i -c \"{checkCommand}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            AddWslArgs(psi, path, checkCommand);
 
             using var process = Process.Start(psi);
             if (process == null) return new JumpboxResult(false, "No se pudo iniciar WSL2.");

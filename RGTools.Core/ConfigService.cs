@@ -39,13 +39,7 @@ public sealed class ConfigService : IConfigService
         await _saveLock.WaitAsync();
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_configFile)!);
-
-            await using (var stream = new FileStream(_configFile, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                await JsonSerializer.SerializeAsync(stream, newSettings, AppJsonContext.Default.AppSettings);
-            }
-
+            await WriteAtomicAsync(newSettings);
             Current = newSettings;
         }
         catch (Exception ex)
@@ -56,6 +50,39 @@ public sealed class ConfigService : IConfigService
         {
             _saveLock.Release();
         }
+    }
+
+    public async Task UpdateAsync(Func<AppSettings, AppSettings> mutate)
+    {
+        await _saveLock.WaitAsync();
+        try
+        {
+            var updated = mutate(Current);
+            await WriteAtomicAsync(updated);
+            Current = updated;
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[CONFIG] Update error", ex);
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    private async Task WriteAtomicAsync(AppSettings settings)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_configFile)!);
+        string tempPath = _configFile + ".tmp";
+
+        await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await JsonSerializer.SerializeAsync(stream, settings, AppJsonContext.Default.AppSettings);
+            await stream.FlushAsync();
+        }
+
+        File.Move(tempPath, _configFile, overwrite: true);
     }
 }
 

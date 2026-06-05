@@ -12,6 +12,7 @@ public class UserConsentServiceTests
         var granted = grantedOps.ToDictionary(op => op, _ => true);
         config.Current.Returns(new AppSettings { Consent = new ConsentSettings { Granted = granted } });
         config.SaveAsync(Arg.Any<AppSettings>()).Returns(Task.CompletedTask);
+        config.UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>()).Returns(Task.CompletedTask);
         return config;
     }
 
@@ -28,7 +29,7 @@ public class UserConsentServiceTests
     {
         var svc = new UserConsentService(ConfigWith());
 
-        Assert.False(svc.IsGranted("zen.hosts-block"));
+        Assert.False(svc.IsGranted("gaming.unknown-op"));
     }
 
     [Fact]
@@ -40,6 +41,6 @@ public class UserConsentServiceTests
         bool result = await svc.RequestAsync("op1", "title", "detail");
 
         Assert.True(result);
-        await config.DidNotReceive().SaveAsync(Arg.Any<AppSettings>());
+        await config.DidNotReceive().UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>());
     }
 }
