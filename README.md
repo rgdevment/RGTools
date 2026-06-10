@@ -92,3 +92,44 @@ Configuración, logs y estados de rollback: `%APPDATA%\RGTools\`.
 - Las apps cerradas por Gaming no se reabren solas al volver a Trabajo (se abren a mano).
 - Temperaturas de CPU/GPU no se monitorizan (Windows no las expone de forma fiable sin SDK extra).
 - Solo Windows 11 x64.
+
+
+PC - Stack
+### 🚀 Núcleo
+
+- **Procesador:** Intel Core Ultra 7 265K (Desbloqueado, Socket LGA 1851).
+- **B Madre:** ASUS TUF GAMING Z890-PLUS WIFI (Chipset Z890).
+- **Memoria RAM:** 64GB Total (2x32GB) ADATA XPG Lancer DDR5 6400MHz RGB Black.
+
+### 🎮 Gráfica & Visual
+
+- **Tarjeta de Video:** Palit GeForce RTX 5070 Ti GamingPro-S 16GB GDDR7 (256-bit).
+- Monitor Gamer Xiaomi con pantalla de 34" 180Hz y resolución WQHD (Principal)
+- LG HDR WFHD 75HZ Vertical (Secundaria)
+
+### ❄️ Refrigeración & Chasis
+
+- **Gabinete:** Darkflash DS900 Black (Tipo "Pecera").
+- **Refrigeración Líquida:** Segotep Beaced 360 ARGB Black (Compatible LGA 1851).
+- **Ventiladores:** 6x Darkflash DM12 Pro PWM (Configuración de flujo optimizado).
+
+### 💾 Almacenamiento & Energía (Actualizado)
+
+- **SSD Primario (Sistema/WSL):** Kingston Fury Renegade G5 2TB (**PCIe 5.0**, 14.700 MB/s, con DRAM Cache).
+- **SSD Secundario (Juegos/Media):** Western Digital WD Black SN850X 1TB (PCIe 4.0, gama alta).
+- **Fuente de Poder:** Be Quiet! Pure Power 13 M 850W (80 Plus Gold, ATX 3.1 nativa).
+
+### 🕹️ Periféricos & Audio (Nuevos)
+
+- **Audio:** Sony Inzone H9 II (Noise Cancelling, drivers de carbono, conexión simultánea 2.4GHz + BT).
+- **Control:** ThundeRobot G80 Ultimate/Pro (Joysticks de Efecto Hall, tasa de sondeo 1000Hz, botones mecánicos y base de carga).
+- **Teclado:** Teclado Inalámbrico Logitech K860 Ergo Black Color Del Teclado Negro Idioma Español España
+- Mouse Bluetooth Ergonomico Logitech Mx Vertical Color Negro
+
+### 🛠️ Accesorios & Herramientas
+
+- **Soporte de GPU:** Soporte Universal Ajustable Magnético.
+
+### 🛡️ Protección Eléctrica
+
+- **UPS:** Forza FX-1500LCD-C (1500VA / 840W).
