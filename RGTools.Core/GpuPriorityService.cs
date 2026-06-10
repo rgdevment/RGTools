@@ -16,7 +16,7 @@ public sealed class GpuPriorityService : IGpuPriorityService
 
         try
         {
-            await _store.SaveAsync(StateKeys.Gpu, ReadSnapshot());
+            await _store.SaveAsync(StateKeys.Gpu, ReadSnapshot()).ConfigureAwait(false);
 
             using var key = Registry.LocalMachine.CreateSubKey(GamesTasksPath, writable: true);
             if (key == null) return;
@@ -29,6 +29,7 @@ public sealed class GpuPriorityService : IGpuPriorityService
         catch (Exception ex)
         {
             LogService.Log("[GPU] Apply failed", ex);
+            throw;
         }
     }
 
@@ -38,10 +39,16 @@ public sealed class GpuPriorityService : IGpuPriorityService
 
         try
         {
-            var previous = await _store.LoadAsync<GpuSnapshot>(StateKeys.Gpu);
+            var previous = await _store.LoadAsync<GpuSnapshot>(StateKeys.Gpu).ConfigureAwait(false);
+            if (previous == null)
+            {
+                LogService.Log("[GPU] Snapshot missing/corrupt; priority NOT restored, file kept for retry.");
+                return;
+            }
+
             using (var key = Registry.LocalMachine.CreateSubKey(GamesTasksPath, writable: true))
             {
-                if (key != null && previous != null)
+                if (key != null)
                 {
                     WriteOrDelete(key, "GPU Priority", previous.GpuPriority, RegistryValueKind.DWord);
                     WriteOrDelete(key, "Priority", previous.Priority, RegistryValueKind.DWord);

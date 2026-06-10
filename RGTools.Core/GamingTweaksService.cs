@@ -22,7 +22,7 @@ public sealed class GamingTweaksService : IGamingTweaksService
         {
             var interfaces = ActiveInterfaceKeys();
             var snapshot = ReadSnapshot(interfaces);
-            await _store.SaveAsync(StateKeys.Tweaks, snapshot);
+            await _store.SaveAsync(StateKeys.Tweaks, snapshot).ConfigureAwait(false);
 
             SetLocalMachineDword(SystemProfilePath, "SystemResponsiveness", 0);
             SetLocalMachineDword(SystemProfilePath, "NetworkThrottlingIndex", NetworkThrottlingOff);
@@ -39,6 +39,7 @@ public sealed class GamingTweaksService : IGamingTweaksService
         catch (Exception ex)
         {
             LogService.Log("[TWEAKS] Apply failed", ex);
+            throw;
         }
     }
 
@@ -48,18 +49,23 @@ public sealed class GamingTweaksService : IGamingTweaksService
 
         try
         {
-            var snapshot = await _store.LoadAsync<TweaksSnapshot>(StateKeys.Tweaks);
-            if (snapshot != null)
+            var snapshot = await _store.LoadAsync<TweaksSnapshot>(StateKeys.Tweaks).ConfigureAwait(false);
+            if (snapshot == null)
             {
-                WriteOrDeleteLocalMachine(SystemProfilePath, "SystemResponsiveness", snapshot.SystemResponsiveness);
-                WriteOrDeleteLocalMachine(SystemProfilePath, "NetworkThrottlingIndex", snapshot.NetworkThrottlingIndex);
-                WriteOrDeleteCurrentUser(GameBarPath, "AutoGameModeEnabled", snapshot.AutoGameMode);
+                // Corrupt/unreadable snapshot: keep the file so IsDirty retries on next launch
+                // instead of silently leaving the Gaming tweaks applied forever.
+                LogService.Log("[TWEAKS] Snapshot missing/corrupt; tweaks NOT restored, file kept for retry.");
+                return;
+            }
 
-                foreach (var nic in snapshot.Nagle)
-                {
-                    WriteOrDeleteLocalMachine(nic.InterfacePath, "TcpAckFrequency", nic.TcpAckFrequency);
-                    WriteOrDeleteLocalMachine(nic.InterfacePath, "TCPNoDelay", nic.TcpNoDelay);
-                }
+            WriteOrDeleteLocalMachine(SystemProfilePath, "SystemResponsiveness", snapshot.SystemResponsiveness);
+            WriteOrDeleteLocalMachine(SystemProfilePath, "NetworkThrottlingIndex", snapshot.NetworkThrottlingIndex);
+            WriteOrDeleteCurrentUser(GameBarPath, "AutoGameModeEnabled", snapshot.AutoGameMode);
+
+            foreach (var nic in snapshot.Nagle)
+            {
+                WriteOrDeleteLocalMachine(nic.InterfacePath, "TcpAckFrequency", nic.TcpAckFrequency);
+                WriteOrDeleteLocalMachine(nic.InterfacePath, "TCPNoDelay", nic.TcpNoDelay);
             }
 
             _store.Clear(StateKeys.Tweaks);

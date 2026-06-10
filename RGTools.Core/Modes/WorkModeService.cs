@@ -37,16 +37,23 @@ public sealed class WorkModeService : IMode
     {
         if (_store.Exists(StateKeys.Workload))
         {
-            var snapshot = await _store.LoadAsync<WorkloadSnapshot>(StateKeys.Workload);
-            if (snapshot != null) await _workload.RestoreAsync(snapshot, ct);
-            _store.Clear(StateKeys.Workload);
+            var snapshot = await _store.LoadAsync<WorkloadSnapshot>(StateKeys.Workload).ConfigureAwait(false);
+            if (snapshot != null)
+            {
+                await _workload.RestoreAsync(snapshot, ct).ConfigureAwait(false);
+                _store.Clear(StateKeys.Workload);
+            }
+            else
+            {
+                LogService.Log("[WORK] Workload snapshot missing/corrupt; kept for retry.");
+            }
         }
 
-        await _gpu.RestoreAsync();
-        await _display.RestoreAsync();
-        await _tweaks.RestoreAsync();
-        await _silencer.RestoreAsync();
-        await _power.RestoreAsync();
+        await _gpu.RestoreAsync().ConfigureAwait(false);
+        await _display.RestoreAsync().ConfigureAwait(false);
+        await _tweaks.RestoreAsync().ConfigureAwait(false);
+        await _silencer.RestoreAsync().ConfigureAwait(false);
+        await _power.RestoreAsync().ConfigureAwait(false);
 
         _notify.MinimumLevel = NotificationLevel.Info;
         _notify.Notify("💼 Modo Trabajo", "Estado restaurado · plan equilibrado");

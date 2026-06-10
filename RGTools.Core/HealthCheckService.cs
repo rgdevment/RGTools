@@ -25,11 +25,11 @@ public sealed class HealthCheckService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await RunChecksAsync(stoppingToken);
+            await RunChecksAsync(stoppingToken).ConfigureAwait(false);
 
             try
             {
-                if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+                if (!await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false)) break;
             }
             catch (OperationCanceledException)
             {
@@ -45,7 +45,7 @@ public sealed class HealthCheckService : BackgroundService
             bool dnsOk = _dns.IsRunning;
             long freeGb = GetFreeDiskGb();
             bool diskOk = freeGb < 0 || freeGb >= MinFreeDiskGb;
-            bool netOk = await IsInternetReachableAsync(token);
+            bool netOk = await IsInternetReachableAsync(token).ConfigureAwait(false);
 
             string tooltip =
                 $"RGTools — {_modeManager.Active}\n" +
@@ -85,7 +85,7 @@ public sealed class HealthCheckService : BackgroundService
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync("1.1.1.1", TimeSpan.FromSeconds(2), cancellationToken: token);
+            var reply = await ping.SendPingAsync("1.1.1.1", TimeSpan.FromSeconds(2), cancellationToken: token).ConfigureAwait(false);
             return reply.Status == IPStatus.Success;
         }
         catch

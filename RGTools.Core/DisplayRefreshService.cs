@@ -34,7 +34,7 @@ public sealed class DisplayRefreshService : IDisplayRefreshService
                 if (max > current.dmDisplayFrequency) targets.Add((device, current, max));
             }
 
-            await _store.SaveAsync(StateKeys.Display, previous);
+            await _store.SaveAsync(StateKeys.Display, previous).ConfigureAwait(false);
 
             var changed = new List<string>();
             foreach (var (device, current, max) in targets)
@@ -46,6 +46,7 @@ public sealed class DisplayRefreshService : IDisplayRefreshService
         catch (Exception ex)
         {
             LogService.Log("[DISPLAY] Apply failed", ex);
+            throw;
         }
     }
 
@@ -55,7 +56,7 @@ public sealed class DisplayRefreshService : IDisplayRefreshService
 
         try
         {
-            var previous = await _store.LoadAsync<List<DisplayMode>>(StateKeys.Display);
+            var previous = await _store.LoadAsync<List<DisplayMode>>(StateKeys.Display).ConfigureAwait(false);
             bool allHandled = true;
 
             if (previous != null)

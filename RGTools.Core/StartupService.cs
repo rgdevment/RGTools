@@ -24,7 +24,7 @@ public sealed class StartupService : IStartupService
                 args = $"/delete /tn \"{TaskName}\" /f";
             }
 
-            return await _runner.RunAsync("schtasks", args) == 0;
+            return await _runner.RunAsync("schtasks", args).ConfigureAwait(false) == 0;
         }
         catch (Exception ex)
         {
@@ -35,7 +35,7 @@ public sealed class StartupService : IStartupService
 
     public async Task<bool?> IsEnabledAsync()
     {
-        int exit = await _runner.RunAsync("schtasks", $"/query /tn \"{TaskName}\"");
+        int exit = await _runner.RunAsync("schtasks", $"/query /tn \"{TaskName}\"").ConfigureAwait(false);
         return exit switch
         {
             0 => true,

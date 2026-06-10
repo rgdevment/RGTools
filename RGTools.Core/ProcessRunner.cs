@@ -12,7 +12,7 @@ public sealed class ProcessRunner : IProcessRunner
             using var process = Start(fileName, arguments, capture: true);
             if (process == null) return -1;
 
-            await process.WaitForExitAsync(ct);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
             LogService.Log($"[PROC] {fileName} {Shorten(arguments)} -> exit {process.ExitCode}");
             return process.ExitCode;
         }
@@ -29,7 +29,7 @@ public sealed class ProcessRunner : IProcessRunner
         {
             using var process = StartPowerShell(script, capture: false);
             if (process == null) return;
-            await process.WaitForExitAsync(ct);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -44,8 +44,8 @@ public sealed class ProcessRunner : IProcessRunner
             using var process = StartPowerShell(script, capture: true);
             if (process == null) return string.Empty;
 
-            string output = await process.StandardOutput.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
+            string output = await process.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
             return output;
         }
         catch (Exception ex)

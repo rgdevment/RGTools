@@ -22,28 +22,28 @@ public sealed partial class PowerPlanService : IPowerPlanService
     {
         if (!_store.Exists(StateKeys.PowerScheme))
         {
-            var current = await GetActiveSchemeAsync();
+            var current = await GetActiveSchemeAsync().ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(current))
-                await _store.SaveAsync(StateKeys.PowerScheme, current);
+                await _store.SaveAsync(StateKeys.PowerScheme, current).ConfigureAwait(false);
             else
                 LogService.Log("[POWER] Could not capture active scheme; restore will default to Balanced.");
         }
 
-        var target = await ResolveBestSchemeAsync();
-        if (await _runner.RunAsync("powercfg", $"/setactive {target}") != 0 && target != BalancedGuid)
-            await _runner.RunAsync("powercfg", $"/setactive {BalancedGuid}");
+        var target = await ResolveBestSchemeAsync().ConfigureAwait(false);
+        if (await _runner.RunAsync("powercfg", $"/setactive {target}").ConfigureAwait(false) != 0 && target != BalancedGuid)
+            await _runner.RunAsync("powercfg", $"/setactive {BalancedGuid}").ConfigureAwait(false);
     }
 
     private async Task<string> ResolveBestSchemeAsync()
     {
-        var list = await _runner.RunPowerShellCaptureAsync("powercfg /list");
+        var list = await _runner.RunPowerShellCaptureAsync("powercfg /list").ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(list)) return UltimateTargetGuid;
 
         if (list.Contains(UltimateTargetGuid, StringComparison.OrdinalIgnoreCase)) return UltimateTargetGuid;
         if (list.Contains(UltimateTemplateGuid, StringComparison.OrdinalIgnoreCase)) return UltimateTemplateGuid;
 
-        if (await _runner.RunAsync("powercfg", $"-duplicatescheme {UltimateTemplateGuid} {UltimateTargetGuid}") == 0)
+        if (await _runner.RunAsync("powercfg", $"-duplicatescheme {UltimateTemplateGuid} {UltimateTargetGuid}").ConfigureAwait(false) == 0)
             return UltimateTargetGuid;
 
         return list.Contains(HighPerformanceGuid, StringComparison.OrdinalIgnoreCase) ? HighPerformanceGuid : BalancedGuid;
@@ -55,17 +55,17 @@ public sealed partial class PowerPlanService : IPowerPlanService
 
         if (_store.Exists(StateKeys.PowerScheme))
         {
-            var saved = await _store.LoadAsync<string>(StateKeys.PowerScheme);
+            var saved = await _store.LoadAsync<string>(StateKeys.PowerScheme).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(saved)) target = saved;
             _store.Clear(StateKeys.PowerScheme);
         }
 
-        await _runner.RunAsync("powercfg", $"/setactive {target}");
+        await _runner.RunAsync("powercfg", $"/setactive {target}").ConfigureAwait(false);
     }
 
     private async Task<string?> GetActiveSchemeAsync()
     {
-        var output = await _runner.RunPowerShellCaptureAsync("powercfg /getactivescheme");
+        var output = await _runner.RunPowerShellCaptureAsync("powercfg /getactivescheme").ConfigureAwait(false);
         var match = GuidRegex().Match(output);
         return match.Success ? match.Value : null;
     }

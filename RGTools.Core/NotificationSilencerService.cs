@@ -17,7 +17,7 @@ public sealed class NotificationSilencerService : INotificationSilencer
         try
         {
             if (!_store.Exists(StateKey))
-                await _store.SaveAsync(StateKey, ReadToastEnabled());
+                await _store.SaveAsync(StateKey, ReadToastEnabled()).ConfigureAwait(false);
 
             SetToastEnabled(0);
             LogService.Log("[SILENCER] Windows toast notifications disabled (Do Not Disturb).");
@@ -25,6 +25,7 @@ public sealed class NotificationSilencerService : INotificationSilencer
         catch (Exception ex)
         {
             LogService.Log("[SILENCER] Silence failed", ex);
+            throw;
         }
     }
 
@@ -34,10 +35,12 @@ public sealed class NotificationSilencerService : INotificationSilencer
 
         try
         {
-            int previous = await _store.LoadAsync<int>(StateKey);
-            SetToastEnabled(previous);
+            // int? (not int): a corrupt snapshot deserializes to null, not 0 — and 0 would
+            // mean "stay silenced". Default to 1 (enabled) so Work never leaves toasts off.
+            int? previous = await _store.LoadAsync<int?>(StateKey).ConfigureAwait(false);
+            SetToastEnabled(previous ?? 1);
             _store.Clear(StateKey);
-            LogService.Log("[SILENCER] Windows toast notifications restored.");
+            LogService.Log($"[SILENCER] Windows toast notifications restored ({(previous.HasValue ? previous.Value.ToString() : "default-enabled")}).");
         }
         catch (Exception ex)
         {

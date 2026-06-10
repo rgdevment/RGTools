@@ -9,7 +9,15 @@ public sealed class JumpboxService : IJumpboxService
         if (string.IsNullOrWhiteSpace(path))
             return new JumpboxResult(false, "Ruta WSL2 no especificada.");
 
-        var validation = await ValidateWslEnvironmentAsync(path);
+        // config.json lives in %APPDATA% and is user-writable; this process runs as admin.
+        // Reject anything that isn't a plain absolute WSL path before handing it to wsl.exe.
+        if (!IsSafeWslPath(path))
+        {
+            LogService.Log($"[JUMPBOX] Rejected unsafe path: {path}");
+            return new JumpboxResult(false, "Ruta WSL2 inválida o no permitida.");
+        }
+
+        var validation = await ValidateWslEnvironmentAsync(path).ConfigureAwait(false);
         if (!validation.Success) return validation;
 
         var psi = new ProcessStartInfo
@@ -35,6 +43,19 @@ public sealed class JumpboxService : IJumpboxService
         }
     }
 
+    private static bool IsSafeWslPath(string path)
+    {
+        if (!path.StartsWith('/')) return false;
+        foreach (char c in path)
+        {
+            if (char.IsControl(c)) return false;
+            if (c is '\'' or '"' or '`' or '$' or ';' or '&' or '|' or '\\' or '\n' or '\r') return false;
+        }
+        return true;
+    }
+
+    // zsh -i (interactive) is required so the user's .zshrc puts `uv` on PATH; without it
+    // `uv run` fails. The path is validated upstream, so the interactive shell is acceptable.
     private static void AddWslArgs(ProcessStartInfo psi, string path, string command)
     {
         psi.ArgumentList.Add("--cd");
@@ -69,9 +90,9 @@ public sealed class JumpboxService : IJumpboxService
 
             var stdoutTask = process.StandardOutput.ReadToEndAsync();
             var stderrTask = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            string stdout = await stdoutTask;
-            string stderr = await stderrTask;
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            string stdout = await stdoutTask.ConfigureAwait(false);
+            string stderr = await stderrTask.ConfigureAwait(false);
 
             if (process.ExitCode != 0)
             {

@@ -42,22 +42,22 @@ public sealed class GamingModeService : IMode
     {
         if (!_store.Exists(StateKeys.Workload))
         {
-            var snapshot = await _workload.CaptureAsync(ct);
-            await _store.SaveAsync(StateKeys.Workload, snapshot);
-            await _workload.SuspendAsync(ct);
+            var snapshot = await _workload.CaptureAsync(ct).ConfigureAwait(false);
+            await _store.SaveAsync(StateKeys.Workload, snapshot).ConfigureAwait(false);
+            await _workload.SuspendAsync(ct).ConfigureAwait(false);
         }
 
-        await _power.ApplyHighPerformanceAsync();
-        await _silencer.SilenceAsync();
-        await _display.ApplyMaxAsync();
-        await _tweaks.ApplyAsync();
+        await _power.ApplyHighPerformanceAsync().ConfigureAwait(false);
+        await _silencer.SilenceAsync().ConfigureAwait(false);
+        await _display.ApplyMaxAsync().ConfigureAwait(false);
+        await _tweaks.ApplyAsync().ConfigureAwait(false);
 
         string gpuStatus;
         if (await _consent.RequestAsync(GpuConsentId,
                 "Modo Gaming — GPU Priority",
-                "¿Aplicar prioridad de GPU en el registro de Windows? Se revierte al salir del modo."))
+                "¿Aplicar prioridad de GPU en el registro de Windows? Se revierte al salir del modo.").ConfigureAwait(false))
         {
-            await _gpu.ApplyAsync();
+            await _gpu.ApplyAsync().ConfigureAwait(false);
             gpuStatus = "GPU Priority on";
         }
         else
@@ -71,10 +71,10 @@ public sealed class GamingModeService : IMode
 
     public async Task DeactivateAsync(CancellationToken ct = default)
     {
-        await _gpu.RestoreAsync();
-        await _display.RestoreAsync();
-        await _tweaks.RestoreAsync();
-        await _silencer.RestoreAsync();
-        await _power.RestoreAsync();
+        await _gpu.RestoreAsync().ConfigureAwait(false);
+        await _display.RestoreAsync().ConfigureAwait(false);
+        await _tweaks.RestoreAsync().ConfigureAwait(false);
+        await _silencer.RestoreAsync().ConfigureAwait(false);
+        await _power.RestoreAsync().ConfigureAwait(false);
     }
 }

@@ -112,8 +112,8 @@ public class DnsGuardianService : IDnsGuardianService
                 try
                 {
                     LogService.Log("[Guardian] WMI network change event detected.");
-                    await Task.Delay(2000);
-                    await CheckAndRestoreDnsAsync("WmiEvent");
+                    await Task.Delay(2000).ConfigureAwait(false);
+                    await CheckAndRestoreDnsAsync("WmiEvent").ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -134,16 +134,16 @@ public class DnsGuardianService : IDnsGuardianService
         try
         {
             LogService.Log("[Guardian] Loop started, performing startup DNS check...");
-            await CheckAndRestoreDnsAsync("Startup");
+            await CheckAndRestoreDnsAsync("Startup").ConfigureAwait(false);
 
             LogService.Log($"[Guardian] Creating timer for {CheckIntervalMinutes} minute intervals...");
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(CheckIntervalMinutes));
             LogService.Log("[Guardian] Entering main monitoring loop.");
 
-            while (await timer.WaitForNextTickAsync(token))
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
                 LogService.Log("[Guardian] Timer tick - running scheduled DNS check.");
-                await CheckAndRestoreDnsAsync("Timer");
+                await CheckAndRestoreDnsAsync("Timer").ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -165,7 +165,7 @@ public class DnsGuardianService : IDnsGuardianService
 
         try
         {
-            if (!await _lock.WaitAsync(0))
+            if (!await _lock.WaitAsync(0).ConfigureAwait(false))
             {
                 LogService.Log($"[Guardian] ({source}) Lock busy, skipping check.");
                 return;
@@ -198,7 +198,7 @@ public class DnsGuardianService : IDnsGuardianService
             if (currentDns != TargetDns)
             {
                 LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Restoring {TargetDns}...");
-                await RestoreDnsIpAsync(nic.Name);
+                await RestoreDnsIpAsync(nic.Name).ConfigureAwait(false);
             }
             else
             {
@@ -218,9 +218,9 @@ public class DnsGuardianService : IDnsGuardianService
 
     private async Task RestoreDnsIpAsync(string interfaceName)
     {
-        await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no");
+        await RunProcessAsync("netsh", $"interface ip set dns name=\"{interfaceName}\" static {TargetDns} validate=no").ConfigureAwait(false);
 
-        if (EnableDohEncryption && !string.IsNullOrEmpty(TargetDohTemplate))
+        if (EnableDohEncryption && IsValidDohTemplate(TargetDohTemplate))
         {
             string psScript = """
                 $dns = '[DNS]';
@@ -245,10 +245,17 @@ public class DnsGuardianService : IDnsGuardianService
                 .Replace("[TEMPLATE]", TargetDohTemplate)
                 .Replace("[INTERFACE]", interfaceName);
 
-            await RunProcessAsync("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"");
+            await RunProcessAsync("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"").ConfigureAwait(false);
             LogService.Log($"[Guardian] DNS + DoH Restore attempted for '{interfaceName}'.");
         }
     }
+
+    // PERSONAL_DOH is a machine env var injected into a PowerShell -Command string.
+    // Require a well-formed https URL so a tampered value can't carry script payloads.
+    private static bool IsValidDohTemplate(string? template) =>
+        Uri.TryCreate(template, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        !template!.Any(c => char.IsControl(c) || c is '\'' or '"' or ';' or '`' or '$');
 
     private NetworkInterface? GetPhysicalInterface()
     {
@@ -310,9 +317,9 @@ public class DnsGuardianService : IDnsGuardianService
             {
                 var stdoutTask = p.StandardOutput.ReadToEndAsync();
                 var stderrTask = p.StandardError.ReadToEndAsync();
-                await p.WaitForExitAsync();
-                string stderr = await stderrTask;
-                await stdoutTask;
+                await p.WaitForExitAsync().ConfigureAwait(false);
+                string stderr = await stderrTask.ConfigureAwait(false);
+                await stdoutTask.ConfigureAwait(false);
 
                 LogService.Log($"[Guardian] Process exited: code {p.ExitCode}");
 

@@ -31,7 +31,7 @@ public sealed class ModeManager : IModeManager
             return;
         }
 
-        await _gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (target == Active) return;
@@ -39,12 +39,12 @@ public sealed class ModeManager : IModeManager
             IsTransitioning = true;
             LogService.Log($"[MODE] Switching {Active} -> {target}");
 
-            await _config.UpdateAsync(s => s with { ActiveProfile = target });
+            await _config.UpdateAsync(s => s with { ActiveProfile = target }).ConfigureAwait(false);
 
             if (_modes.TryGetValue(Active, out var current))
-                await current.DeactivateAsync(ct);
+                await current.DeactivateAsync(ct).ConfigureAwait(false);
 
-            await _modes[target].ActivateAsync(ct);
+            await _modes[target].ActivateAsync(ct).ConfigureAwait(false);
 
             Active = target;
             ModeChanged?.Invoke(target);
@@ -53,7 +53,7 @@ public sealed class ModeManager : IModeManager
         catch (Exception ex)
         {
             LogService.LogCrash($"[MODE] Transition to {target} failed", ex);
-            await ForceWorkAsync(ct);
+            await ForceWorkAsync(ct).ConfigureAwait(false);
         }
         finally
         {
@@ -82,18 +82,19 @@ public sealed class ModeManager : IModeManager
             await SanitizeToWorkAsync(ct);
         }
 
-        await _store.SaveAsync(StateKeys.RunMarker, true);
+        try { await _store.SaveAsync(StateKeys.RunMarker, true).ConfigureAwait(false); }
+        catch (Exception ex) { LogService.Log("[MODE] Could not write run marker", ex); }
     }
 
     public void MarkCleanShutdown() => _store.Clear(StateKeys.RunMarker);
 
     public async Task SanitizeToWorkAsync(CancellationToken ct = default)
     {
-        await _gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             IsTransitioning = true;
-            await ForceWorkAsync(ct);
+            await ForceWorkAsync(ct).ConfigureAwait(false);
         }
         finally
         {
@@ -106,8 +107,8 @@ public sealed class ModeManager : IModeManager
     {
         try
         {
-            await _config.UpdateAsync(s => s with { ActiveProfile = ProfileKind.Work });
-            await _modes[ProfileKind.Work].ActivateAsync(ct);
+            await _config.UpdateAsync(s => s with { ActiveProfile = ProfileKind.Work }).ConfigureAwait(false);
+            await _modes[ProfileKind.Work].ActivateAsync(ct).ConfigureAwait(false);
             Active = ProfileKind.Work;
             ModeChanged?.Invoke(ProfileKind.Work);
             LogService.Log("[MODE] Forced clean Work state.");

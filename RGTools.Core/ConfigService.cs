@@ -24,7 +24,7 @@ public sealed class ConfigService : IConfigService
             if (!File.Exists(_configFile)) return;
 
             await using var stream = new FileStream(_configFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-            Current = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppSettings)
+            Current = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppSettings).ConfigureAwait(false)
                       ?? new AppSettings();
         }
         catch (Exception ex)
@@ -36,10 +36,10 @@ public sealed class ConfigService : IConfigService
 
     public async Task SaveAsync(AppSettings newSettings)
     {
-        await _saveLock.WaitAsync();
+        await _saveLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            await WriteAtomicAsync(newSettings);
+            await WriteAtomicAsync(newSettings).ConfigureAwait(false);
             Current = newSettings;
         }
         catch (Exception ex)
@@ -54,11 +54,11 @@ public sealed class ConfigService : IConfigService
 
     public async Task UpdateAsync(Func<AppSettings, AppSettings> mutate)
     {
-        await _saveLock.WaitAsync();
+        await _saveLock.WaitAsync().ConfigureAwait(false);
         try
         {
             var updated = mutate(Current);
-            await WriteAtomicAsync(updated);
+            await WriteAtomicAsync(updated).ConfigureAwait(false);
             Current = updated;
         }
         catch (Exception ex)
@@ -78,8 +78,8 @@ public sealed class ConfigService : IConfigService
 
         await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            await JsonSerializer.SerializeAsync(stream, settings, AppJsonContext.Default.AppSettings);
-            await stream.FlushAsync();
+            await JsonSerializer.SerializeAsync(stream, settings, AppJsonContext.Default.AppSettings).ConfigureAwait(false);
+            await stream.FlushAsync().ConfigureAwait(false);
         }
 
         File.Move(tempPath, _configFile, overwrite: true);

@@ -24,8 +24,8 @@ public sealed class WorkloadGuardService : IWorkloadGuard
 
     public async Task<WorkloadSnapshot> CaptureAsync(CancellationToken ct = default) => new()
     {
-        WSearchWasRunning = await IsServiceRunningAsync("WSearch", ct),
-        DockerServiceWasRunning = await IsServiceRunningAsync(DockerService, ct)
+        WSearchWasRunning = await IsServiceRunningAsync("WSearch", ct).ConfigureAwait(false),
+        DockerServiceWasRunning = await IsServiceRunningAsync(DockerService, ct).ConfigureAwait(false)
     };
 
     public async Task SuspendAsync(CancellationToken ct = default)
@@ -39,7 +39,7 @@ public sealed class WorkloadGuardService : IWorkloadGuard
             "$p | ForEach-Object { $_.CloseMainWindow() | Out-Null }; " +
             "Start-Sleep -Seconds 3; " +
             $"Get-Process {nameList} -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; " +
-            "wsl --shutdown", ct);
+            "wsl --shutdown", ct).ConfigureAwait(false);
 
         LogService.Log($"[WORKLOAD] Suspended (graceful-then-force: {string.Join(", ", ProcessesToClose)}, WSL2)");
     }
@@ -47,10 +47,10 @@ public sealed class WorkloadGuardService : IWorkloadGuard
     public async Task RestoreAsync(WorkloadSnapshot snapshot, CancellationToken ct = default)
     {
         if (snapshot.WSearchWasRunning)
-            await _runner.RunPowerShellAsync("Start-Service -Name 'WSearch' -ErrorAction SilentlyContinue", ct);
+            await _runner.RunPowerShellAsync("Start-Service -Name 'WSearch' -ErrorAction SilentlyContinue", ct).ConfigureAwait(false);
 
         if (snapshot.DockerServiceWasRunning)
-            await _runner.RunPowerShellAsync($"Start-Service -Name '{DockerService}' -ErrorAction SilentlyContinue", ct);
+            await _runner.RunPowerShellAsync($"Start-Service -Name '{DockerService}' -ErrorAction SilentlyContinue", ct).ConfigureAwait(false);
 
         LogService.Log("[WORKLOAD] Restored WSearch/Docker service. Closed apps (incl. Docker Desktop) must be reopened manually.");
     }
@@ -58,7 +58,7 @@ public sealed class WorkloadGuardService : IWorkloadGuard
     private async Task<bool> IsServiceRunningAsync(string service, CancellationToken ct)
     {
         var output = await _runner.RunPowerShellCaptureAsync(
-            $"(Get-Service -Name '{service}' -ErrorAction SilentlyContinue).Status", ct);
+            $"(Get-Service -Name '{service}' -ErrorAction SilentlyContinue).Status", ct).ConfigureAwait(false);
         return output.Contains("Running", StringComparison.OrdinalIgnoreCase);
     }
 }

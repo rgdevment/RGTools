@@ -9,7 +9,7 @@ personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gam
 
 ## Instalación / Actualización
 
-1. Ejecuta **`RGTools-Setup-1.0.0.exe`** (carpeta `releases/`).
+1. Ejecuta **`RGTools-Setup-1.0.2.exe`** (carpeta `releases/`).
 2. Acepta el UAC (la app necesita privilegios de administrador).
 3. Al terminar, la app queda en la bandeja. El **inicio con Windows** se activa desde el dashboard
    (toggle *"Iniciar con Windows"*) — el instalador no lo gestiona, para tener una sola fuente de verdad.

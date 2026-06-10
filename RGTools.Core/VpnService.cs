@@ -20,6 +20,9 @@ public class VpnService : IVpnService
     private string? _currentVpnIp;
     private readonly string _trashLog = Path.Combine(Path.GetTempPath(), "forti_trash.log");
 
+    // Single-quote escaping for safe interpolation inside the '...' PowerShell literals below.
+    private string TrashLogPs => _trashLog.Replace("'", "''");
+
     public event Action<bool>? StatusChanged;
     public event Action<bool>? ConnectionChanged;
 
@@ -62,7 +65,7 @@ public class VpnService : IVpnService
 
     public async Task ToggleAsync()
     {
-        if (!await _semaphore.WaitAsync(0)) return;
+        if (!await _semaphore.WaitAsync(0).ConfigureAwait(false)) return;
 
         bool wasActive = IsActive;
         string action = wasActive ? "SHUTDOWN" : "STARTUP";
@@ -70,9 +73,9 @@ public class VpnService : IVpnService
 
         try
         {
-            await RunEncodedPowerShellAsync(wasActive ? GetShutdownScript() : GetStartupScript());
+            await RunEncodedPowerShellAsync(wasActive ? GetShutdownScript() : GetStartupScript()).ConfigureAwait(false);
 
-            await WaitForStateAsync(expected: !wasActive, TimeSpan.FromSeconds(5));
+            await WaitForStateAsync(expected: !wasActive, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             bool processState;
             lock (_stateLock)
@@ -100,7 +103,7 @@ public class VpnService : IVpnService
         while (sw.Elapsed < timeout)
         {
             if (IsActive == expected) return;
-            await Task.Delay(200);
+            await Task.Delay(200).ConfigureAwait(false);
         }
     }
 
@@ -108,7 +111,7 @@ public class VpnService : IVpnService
     {
         try
         {
-            await RunEncodedPowerShellAsync("& sc.exe config 'FA_Scheduler' start= demand >$null 2>&1;");
+            await RunEncodedPowerShellAsync("& sc.exe config 'FA_Scheduler' start= demand >$null 2>&1;").ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -231,7 +234,7 @@ public class VpnService : IVpnService
             if (p != null)
             {
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                await p.WaitForExitAsync(timeoutCts.Token);
+                await p.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -242,7 +245,7 @@ public class VpnService : IVpnService
 
     private string GetStartupScript() => $@"
         $svc = 'FA_Scheduler'; $dir = 'C:\Program Files\Fortinet\FortiClient';
-        $exe = Join-Path $dir 'FortiClient.exe'; $log = '{_trashLog}';
+        $exe = Join-Path $dir 'FortiClient.exe'; $log = '{TrashLogPs}';
         Get-Process -Name '*Forti*', 'fc*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue;
         & sc.exe config $svc start= demand >$null 2>&1;
         & sc.exe failure $svc reset= 0 actions= '' >$null 2>&1;
@@ -251,7 +254,7 @@ public class VpnService : IVpnService
 
     private string GetGuiLaunchScript() => $@"
         $dir = 'C:\Program Files\Fortinet\FortiClient'; $exe = Join-Path $dir 'FortiClient.exe';
-        $log = '{_trashLog}';
+        $log = '{TrashLogPs}';
         if (Test-Path $exe) {{
             Start-Process -FilePath $exe -WorkingDirectory $dir -WindowStyle Normal -RedirectStandardOutput $log;
         }}";

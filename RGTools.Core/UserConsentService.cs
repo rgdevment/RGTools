@@ -29,7 +29,7 @@ public sealed class UserConsentService : IUserConsentService
                 {
                     Granted = new Dictionary<string, bool>(s.Consent.Granted) { [operationId] = true }
                 }
-            });
+            }).ConfigureAwait(false);
         }
 
         return accepted;
