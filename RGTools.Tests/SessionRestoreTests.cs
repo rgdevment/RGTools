@@ -73,6 +73,20 @@ public class SessionRestoreTests
     }
 
     [Fact]
+    public async Task RestoreSession_ResumingProfile_StillWritesRunMarker()
+    {
+        var store = FakeStore();
+        var mgr = new ModeManager(
+            new[] { FakeMode(ProfileKind.Work), FakeMode(ProfileKind.Gaming) },
+            FakeConfig(ProfileKind.Gaming), store);
+
+        await mgr.RestoreSessionAsync();
+
+        await store.Received().SaveAsync(StateKeys.RunMarker, Arg.Any<object>());
+        Assert.Equal(ProfileKind.Gaming, mgr.Active);
+    }
+
+    [Fact]
     public void MarkCleanShutdown_ClearsRunMarker()
     {
         var store = FakeStore(StateKeys.RunMarker);

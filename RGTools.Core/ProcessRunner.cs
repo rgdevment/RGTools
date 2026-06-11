@@ -9,7 +9,7 @@ public sealed class ProcessRunner : IProcessRunner
     {
         try
         {
-            using var process = Start(fileName, arguments, capture: true);
+            using var process = Start(fileName, arguments, capture: false);
             if (process == null) return -1;
 
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
@@ -44,9 +44,12 @@ public sealed class ProcessRunner : IProcessRunner
             using var process = StartPowerShell(script, capture: true);
             if (process == null) return string.Empty;
 
-            string output = await process.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            // Drain stdout and stderr concurrently: reading only one can deadlock if the other pipe fills.
+            var stdout = process.StandardOutput.ReadToEndAsync(ct);
+            var stderr = process.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
-            return output;
+            return await stdout.ConfigureAwait(false);
         }
         catch (Exception ex)
         {

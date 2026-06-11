@@ -1,6 +1,6 @@
 namespace RGTools.App.Core;
 
-public sealed class ModeManager : IModeManager
+public sealed class ModeManager : IModeManager, IDisposable
 {
     private readonly Dictionary<ProfileKind, IMode> _modes;
     private readonly IConfigService _config;
@@ -28,6 +28,12 @@ public sealed class ModeManager : IModeManager
         if (!_modes.ContainsKey(target))
         {
             LogService.Log($"[MODE] Unknown target {target}, ignoring.");
+            return;
+        }
+
+        if (IsTransitioning)
+        {
+            LogService.Log($"[MODE] Transition already in progress, ignoring switch to {target}.");
             return;
         }
 
@@ -66,10 +72,15 @@ public sealed class ModeManager : IModeManager
     {
         bool previousRunCrashed = _store.Exists(StateKeys.RunMarker);
 
+        // Mark the session as in-progress BEFORE touching anything: a crash mid-restore must be
+        // detected on the next launch, not silently resumed as a half-applied profile.
+        try { await _store.SaveAsync(StateKeys.RunMarker, true).ConfigureAwait(false); }
+        catch (Exception ex) { LogService.Log("[MODE] Could not write run marker", ex); }
+
         if (previousRunCrashed)
         {
             LogService.Log("[MODE] Previous session did not exit cleanly -> sanitize to Work.");
-            await SanitizeToWorkAsync(ct);
+            await SanitizeToWorkAsync(ct).ConfigureAwait(false);
         }
         else if (Active != ProfileKind.Work)
         {
@@ -79,11 +90,8 @@ public sealed class ModeManager : IModeManager
         else if (IsDirty)
         {
             LogService.Log("[MODE] Work active but stray snapshots found -> sanitize.");
-            await SanitizeToWorkAsync(ct);
+            await SanitizeToWorkAsync(ct).ConfigureAwait(false);
         }
-
-        try { await _store.SaveAsync(StateKeys.RunMarker, true).ConfigureAwait(false); }
-        catch (Exception ex) { LogService.Log("[MODE] Could not write run marker", ex); }
     }
 
     public void MarkCleanShutdown() => _store.Clear(StateKeys.RunMarker);
@@ -118,4 +126,6 @@ public sealed class ModeManager : IModeManager
             LogService.LogCrash("[MODE] Force Work failed", ex);
         }
     }
+
+    public void Dispose() => _gate.Dispose();
 }

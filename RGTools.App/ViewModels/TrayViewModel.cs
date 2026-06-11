@@ -5,7 +5,7 @@ using RGTools.App.Core;
 
 namespace RGTools.App.ViewModels;
 
-public partial class TrayViewModel : ObservableObject
+public partial class TrayViewModel : ObservableObject, IDisposable
 {
     private readonly IVpnService _vpnService;
     private readonly IDnsGuardianService _dnsGuardian;
@@ -26,9 +26,13 @@ public partial class TrayViewModel : ObservableObject
         _isVpnActive = _vpnService.IsActive;
         _isGuardianActive = _dnsGuardian.IsRunning;
 
-        _vpnService.StatusChanged += state => IsVpnActive = state;
-        _dnsGuardian.StatusChanged += state => IsGuardianActive = state;
+        _vpnService.StatusChanged += OnVpnStatusChanged;
+        _dnsGuardian.StatusChanged += OnGuardianStatusChanged;
     }
+
+    private void OnVpnStatusChanged(bool state) => IsVpnActive = state;
+
+    private void OnGuardianStatusChanged(bool state) => IsGuardianActive = state;
 
     [RelayCommand]
     private void Close()
@@ -40,5 +44,11 @@ public partial class TrayViewModel : ObservableObject
     private void OpenDashboard()
     {
         OpenDashboardRequested?.Invoke();
+    }
+
+    public void Dispose()
+    {
+        _vpnService.StatusChanged -= OnVpnStatusChanged;
+        _dnsGuardian.StatusChanged -= OnGuardianStatusChanged;
     }
 }

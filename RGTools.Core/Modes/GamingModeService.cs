@@ -65,16 +65,17 @@ public sealed class GamingModeService : IMode
             gpuStatus = "GPU Priority (sin permiso)";
         }
 
+        _notify.MinimumLevel = NotificationLevel.Warning;
         _notify.Notify("🎮 Modo Gaming",
             $"Apps + Docker/WSL cerrados · Notificaciones en silencio · Máximo rendimiento · Refresh al máximo · Red optimizada · {gpuStatus}");
     }
 
     public async Task DeactivateAsync(CancellationToken ct = default)
     {
-        await _gpu.RestoreAsync().ConfigureAwait(false);
-        await _display.RestoreAsync().ConfigureAwait(false);
-        await _tweaks.RestoreAsync().ConfigureAwait(false);
-        await _silencer.RestoreAsync().ConfigureAwait(false);
-        await _power.RestoreAsync().ConfigureAwait(false);
+        await ModeRestore.TryAsync(_gpu.RestoreAsync, "GAMING", "gpu").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_display.RestoreAsync, "GAMING", "display").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_tweaks.RestoreAsync, "GAMING", "tweaks").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_silencer.RestoreAsync, "GAMING", "silencer").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_power.RestoreAsync, "GAMING", "power").ConfigureAwait(false);
     }
 }

@@ -191,6 +191,11 @@ public partial class App : Application
         LogService.Log("[APP] Shutdown sequence initiated.");
         LogService.Log($"[APP] Exit code: {e.ApplicationExitCode}");
 
+        if (_viewModel != null) _viewModel.OpenDashboardRequested -= OpenDashboardWindow;
+
+        var health = _host?.Services.GetService<HealthCheckService>();
+        if (health != null) health.StatusChanged -= OnHealthStatusChanged;
+
         try
         {
             _trayIcon?.Dispose();

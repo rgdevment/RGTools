@@ -40,8 +40,8 @@ public sealed class WorkModeService : IMode
             var snapshot = await _store.LoadAsync<WorkloadSnapshot>(StateKeys.Workload).ConfigureAwait(false);
             if (snapshot != null)
             {
-                await _workload.RestoreAsync(snapshot, ct).ConfigureAwait(false);
-                _store.Clear(StateKeys.Workload);
+                if (await ModeRestore.TryAsync(() => _workload.RestoreAsync(snapshot, ct), "WORK", "workload").ConfigureAwait(false))
+                    _store.Clear(StateKeys.Workload);
             }
             else
             {
@@ -49,11 +49,11 @@ public sealed class WorkModeService : IMode
             }
         }
 
-        await _gpu.RestoreAsync().ConfigureAwait(false);
-        await _display.RestoreAsync().ConfigureAwait(false);
-        await _tweaks.RestoreAsync().ConfigureAwait(false);
-        await _silencer.RestoreAsync().ConfigureAwait(false);
-        await _power.ApplyPowerSaverAsync().ConfigureAwait(false);
+        await ModeRestore.TryAsync(_gpu.RestoreAsync, "WORK", "gpu").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_display.RestoreAsync, "WORK", "display").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_tweaks.RestoreAsync, "WORK", "tweaks").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_silencer.RestoreAsync, "WORK", "silencer").ConfigureAwait(false);
+        await ModeRestore.TryAsync(_power.ApplyPowerSaverAsync, "WORK", "power").ConfigureAwait(false);
 
         _notify.MinimumLevel = NotificationLevel.Info;
         _notify.Notify("💼 Modo Trabajo", "Estado restaurado · plan de ahorro");

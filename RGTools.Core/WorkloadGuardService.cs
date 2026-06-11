@@ -30,7 +30,8 @@ public sealed class WorkloadGuardService : IWorkloadGuard
 
     public async Task SuspendAsync(CancellationToken ct = default)
     {
-        string nameList = string.Join(",", ProcessesToClose.Select(n => $"'{n}*'"));
+        // Escape single quotes so a process name can't break out of the PowerShell string literal.
+        string nameList = string.Join(",", ProcessesToClose.Select(n => $"'{n.Replace("'", "''")}*'"));
 
         await _runner.RunPowerShellAsync(
             "Stop-Service -Name 'WSearch' -Force -ErrorAction SilentlyContinue; " +

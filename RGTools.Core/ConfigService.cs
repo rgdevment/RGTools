@@ -76,13 +76,22 @@ public sealed class ConfigService : IConfigService
         Directory.CreateDirectory(Path.GetDirectoryName(_configFile)!);
         string tempPath = _configFile + ".tmp";
 
-        await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, settings, AppJsonContext.Default.AppSettings).ConfigureAwait(false);
-            await stream.FlushAsync().ConfigureAwait(false);
-        }
+            await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, settings, AppJsonContext.Default.AppSettings).ConfigureAwait(false);
+                await stream.FlushAsync().ConfigureAwait(false);
+            }
 
-        File.Move(tempPath, _configFile, overwrite: true);
+            File.Move(tempPath, _configFile, overwrite: true);
+        }
+        catch
+        {
+            // Don't leave a half-written .tmp behind; rethrow so the caller logs the real failure.
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            throw;
+        }
     }
 }
 

@@ -75,6 +75,7 @@ public partial class DashboardView : Window
     {
         bool isChecked = ChkStartup.IsChecked ?? false;
         LogService.Log($"[UI] Startup toggle: {isChecked}");
+        ChkStartup.IsEnabled = false;
 
         try
         {
@@ -88,6 +89,10 @@ public partial class DashboardView : Window
             LogService.Log("[STARTUP ERROR]", ex);
             MessageBox.Show($"Error al configurar inicio: {ex.Message}");
             ChkStartup.IsChecked = !isChecked;
+        }
+        finally
+        {
+            ChkStartup.IsEnabled = true;
         }
     }
 
@@ -226,6 +231,7 @@ public partial class DashboardView : Window
     {
         bool isChecked = ChkDns.IsChecked ?? false;
         LogService.Log($"[UI] DNS Guardian checkbox: {isChecked}");
+        ChkDns.IsEnabled = false;
 
         try
         {
@@ -239,6 +245,10 @@ public partial class DashboardView : Window
             LogService.Log("[DNS ERROR]", ex);
             MessageBox.Show($"Error en configuración DNS: {ex.Message}");
             ChkDns.IsChecked = !isChecked;
+        }
+        finally
+        {
+            ChkDns.IsEnabled = true;
         }
     }
 
@@ -267,7 +277,7 @@ public partial class DashboardView : Window
 
     private void OnModeChanged(ProfileKind active)
     {
-        Dispatcher.Invoke(() => UpdateModeUi(active));
+        Dispatcher.BeginInvoke(() => UpdateModeUi(active));
     }
 
     private void UpdateModeUi(ProfileKind active)

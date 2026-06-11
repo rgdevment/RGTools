@@ -120,7 +120,8 @@ public sealed partial class PowerPlanService : IPowerPlanService
             _store.Clear(StateKeys.PowerScheme);
         }
 
-        await _runner.RunAsync("powercfg", $"/setactive {target}").ConfigureAwait(false);
+        if (await _runner.RunAsync("powercfg", $"/setactive {target}").ConfigureAwait(false) != 0 && target != BalancedGuid)
+            await _runner.RunAsync("powercfg", $"/setactive {BalancedGuid}").ConfigureAwait(false);
     }
 
     private async Task<string?> GetActiveSchemeAsync()
