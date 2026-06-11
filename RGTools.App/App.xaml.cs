@@ -84,6 +84,7 @@ public partial class App : Application
         services.AddSingleton<INotificationSilencer, NotificationSilencerService>();
         services.AddSingleton<IMode, WorkModeService>();
         services.AddSingleton<IMode, GamingModeService>();
+        services.AddSingleton<IMode, BoostModeService>();
         services.AddSingleton<IModeManager, ModeManager>();
 
         services.AddSingleton<HealthCheckService>();

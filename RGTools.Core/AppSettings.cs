@@ -3,7 +3,8 @@ namespace RGTools.App.Core;
 public enum ProfileKind
 {
     Work,
-    Gaming
+    Gaming,
+    Boost
 }
 
 public record AppSettings

@@ -121,7 +121,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 531 : 456;
+        Height = isActive ? 583 : 508;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -274,6 +274,7 @@ public partial class DashboardView : Window
     {
         SetModeButton(BtnWork, active == ProfileKind.Work);
         SetModeButton(BtnGaming, active == ProfileKind.Gaming);
+        SetModeButton(BtnBoost, active == ProfileKind.Boost);
     }
 
     private void SetModeButton(Button btn, bool isActive)
@@ -286,6 +287,7 @@ public partial class DashboardView : Window
     {
         BtnWork.IsEnabled = enabled;
         BtnGaming.IsEnabled = enabled;
+        BtnBoost.IsEnabled = enabled;
     }
 
     private void BtnClose_Click(object sender, RoutedEventArgs e)
