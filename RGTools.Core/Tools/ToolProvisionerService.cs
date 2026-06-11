@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace RGTools.App.Core;
 
 public sealed class ToolProvisionerService : IToolProvisioner
@@ -16,6 +18,22 @@ public sealed class ToolProvisionerService : IToolProvisioner
 
         var result = await _runner.RunAsync(manifest.Preflight, tool.RepoPath!, ct).ConfigureAwait(false);
         return result.Success ? ProvisionState.Ready : ProvisionState.NotReady;
+    }
+
+    public async Task<ToolRunResult> AcquireAsync(ToolDescriptor tool, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(tool.RepoUrl) || string.IsNullOrWhiteSpace(tool.CloneTarget))
+            return new ToolRunResult(-1, "No hay URL de repositorio o ruta de destino configurada.");
+
+        if (Directory.Exists(tool.CloneTarget))
+            return new ToolRunResult(0, "");
+
+        string? parent = Directory.GetParent(tool.CloneTarget.TrimEnd('\\', '/'))?.FullName;
+        if (string.IsNullOrEmpty(parent))
+            return new ToolRunResult(-1, $"Ruta de destino inválida: {tool.CloneTarget}");
+
+        Directory.CreateDirectory(parent);
+        return await _runner.RunAsync($"git clone {tool.RepoUrl} \"{tool.CloneTarget}\"", parent, ct).ConfigureAwait(false);
     }
 
     public async Task<ToolRunResult> EnsureAsync(ToolDescriptor tool, CancellationToken ct = default)

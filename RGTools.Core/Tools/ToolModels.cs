@@ -46,12 +46,14 @@ public sealed record ToolManifest
     public bool Elevated { get; init; }
 }
 
-public sealed record ToolIndexEntry(string Id, string Folder);
+public sealed record ToolIndexEntry(string Id, string Folder, string RepoUrl);
 
 public sealed record ToolDescriptor
 {
     public required string Id { get; init; }
+    public string? RepoUrl { get; init; }
     public string? RepoPath { get; init; }
+    public string? CloneTarget { get; init; }
     public ToolManifest? Manifest { get; init; }
 
     public bool IsCloned => RepoPath != null;

@@ -1,3 +1,4 @@
+using System.IO;
 using NSubstitute;
 using RGTools.App.Core;
 using Xunit;
@@ -129,5 +130,70 @@ public class ToolPilotTests
 
         Assert.True(l.Launch(Tool(@"C:\repo", Manifest())));
         runner.Received(1).Launch("uv run vm", @"C:\repo");
+    }
+
+    [Fact]
+    public async Task Acquire_NoUrlOrTarget_ReturnsFailure()
+    {
+        var p = new ToolProvisionerService(Substitute.For<IToolRunner>());
+
+        var result = await p.AcquireAsync(new ToolDescriptor { Id = "videomerge" });
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task Acquire_RunsGitClone_WhenTargetMissing()
+    {
+        var runner = Substitute.For<IToolRunner>();
+        runner.RunAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Returns(new ToolRunResult(0, ""));
+
+        string target = Path.Combine(Path.GetTempPath(), "rgtools_clone_test", "videomerge");
+        try
+        {
+            var p = new ToolProvisionerService(runner);
+            var tool = new ToolDescriptor
+            {
+                Id = "videomerge",
+                RepoUrl = "git@github.com:rgdevment/videomerge.git",
+                CloneTarget = target
+            };
+
+            var result = await p.AcquireAsync(tool);
+
+            Assert.True(result.Success);
+            await runner.Received(1).RunAsync(
+                Arg.Is<string>(c => c.Contains("git clone") && c.Contains("videomerge.git")),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            string parent = Path.Combine(Path.GetTempPath(), "rgtools_clone_test");
+            if (Directory.Exists(parent)) Directory.Delete(parent, true);
+        }
+    }
+
+    [Fact]
+    public async Task Acquire_TargetExists_SkipsClone()
+    {
+        var runner = Substitute.For<IToolRunner>();
+        string target = Path.Combine(Path.GetTempPath(), "rgtools_clone_existing");
+        Directory.CreateDirectory(target);
+        try
+        {
+            var p = new ToolProvisionerService(runner);
+            var tool = new ToolDescriptor { Id = "videomerge", RepoUrl = "x", CloneTarget = target };
+
+            var result = await p.AcquireAsync(tool);
+
+            Assert.True(result.Success);
+            await runner.DidNotReceive().RunAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            if (Directory.Exists(target)) Directory.Delete(target, true);
+        }
     }
 }

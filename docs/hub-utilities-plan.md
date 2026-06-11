@@ -242,19 +242,23 @@ vive en el repo de la herramienta.
 
 ## Estado de implementación
 
-**Piloto (videomerge) — hecho.** Pipeline end-to-end en `RGTools.Core/Tools/`: `ToolModels` (descriptor +
-manifiesto + enums), `ToolsJsonContext` (source-gen del `.rgtool.json`), `ToolRunner` (ejecuta vía
-`cmd /c` con `WorkingDirectory = repo`; launch en consola visible), `ToolRegistryService` (índice
-hardcoded de 1 entrada + descubrimiento por `ToolRoots` + lectura/validación del manifiesto),
-`ToolProvisionerService` (Detect/Ensure), `ToolLauncherService`. Tile "videomerge" en el dashboard con
-estados Preparar/Lanzar. 45 tests verdes. `AppSettings.ToolRoots` opcional (default D/C/E).
+**Piloto (videomerge) — hecho, ciclo completo Clonar→Preparar→Lanzar.** Pipeline end-to-end en
+`RGTools.Core/Tools/`: `ToolModels` (descriptor + manifiesto + `ToolRunResult` + enums), `ToolsJsonContext`
+(source-gen del `.rgtool.json`), `ToolRunner` (ejecuta vía `cmd /c` con `WorkingDirectory = repo`,
+captura/loguea salida; launch en consola visible), `ToolRegistryService` (índice hardcoded con `repoUrl`
++ descubrimiento por `ToolRoots` + `CloneTarget` + lectura/validación del manifiesto),
+`ToolProvisionerService` (Detect/**Acquire** git clone/Ensure), `ToolLauncherService`. Tile "videomerge"
+en el dashboard con 4 estados (Clonar/Preparar/Lanzar/no disponible); los fallos muestran código + cola
+de la salida + ruta del log. 49 tests verdes. `AppSettings.ToolRoots` opcional (default D/C/E); el clone
+cae en la primera root (`D:\Code\github_personal`). URLs SSH (`git@github.com:rgdevment/<repo>.git`).
 
 **Pendiente antes de generalizar:**
 - **Quoting del runner**: `ToolRunner` pasa `cmd /c {commandLine}` crudo. Funciona para videomerge
   (`uv sync`, `uv run vm`); Netmon usa comillas internas (`python -c "..."`) y meet-copilot usa `&&` +
   rutas `.venv\Scripts\...` → validar/escapar antes de darlas de alta.
-- **De-elevación**: el launch hereda el token admin del host (TODO marcado en `ToolRunner.Launch`).
-- **git clone** (Discover→Clone) no implementado: los repos deben estar ya clonados.
+- **De-elevación**: el launch (y el clone SSH) heredan el token admin del host (TODO en `ToolRunner.Launch`).
+  El clone SSH exige llaves/agent accesibles al proceso.
+- **`uv`/`git` por PATH**: resolver por ruta absoluta para no depender del PATH del proceso elevado.
 - **Índice**: hardcoded a videomerge; pasar a `tools.default.json` embebido al sumar herramientas.
 
 ## Etapas (roadmap)

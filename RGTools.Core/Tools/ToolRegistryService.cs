@@ -8,7 +8,7 @@ public sealed class ToolRegistryService : IToolRegistry
     // Pilot index. Moves to a bundled tools.default.json (EmbeddedResource) when more tools come online.
     private static readonly ToolIndexEntry[] Index =
     {
-        new("videomerge", "videomerge"),
+        new("videomerge", "videomerge", "git@github.com:rgdevment/videomerge.git"),
     };
 
     private static readonly string[] DefaultRoots =
@@ -38,14 +38,20 @@ public sealed class ToolRegistryService : IToolRegistry
                 .Select(root => Path.Combine(root, entry.Folder))
                 .FirstOrDefault(Directory.Exists);
 
-            if (repoPath == null)
-            {
-                LogService.Log($"[TOOL] '{entry.Id}' not found in any tool root.");
-                list.Add(new ToolDescriptor { Id = entry.Id });
-                continue;
-            }
+            // Clone destination if it's not found: first configured root wins.
+            string cloneTarget = Path.Combine(roots[0], entry.Folder);
 
-            list.Add(new ToolDescriptor { Id = entry.Id, RepoPath = repoPath, Manifest = ReadManifest(repoPath) });
+            if (repoPath == null)
+                LogService.Log($"[TOOL] '{entry.Id}' not cloned; will offer clone into {cloneTarget}.");
+
+            list.Add(new ToolDescriptor
+            {
+                Id = entry.Id,
+                RepoUrl = entry.RepoUrl,
+                RepoPath = repoPath,
+                CloneTarget = cloneTarget,
+                Manifest = repoPath == null ? null : ReadManifest(repoPath)
+            });
         }
 
         _all = list;

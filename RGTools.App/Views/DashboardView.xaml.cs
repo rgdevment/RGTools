@@ -344,8 +344,9 @@ public partial class DashboardView : Window
         {
             ProvisionState.Ready => ("▶ Lanzar videomerge", true),
             ProvisionState.NotReady => ("⚙ Preparar videomerge", true),
+            ProvisionState.NotCloned => ("⬇ Clonar videomerge", true),
             ProvisionState.Broken => ("videomerge (sin manifiesto)", false),
-            _ => ("videomerge (no encontrado)", false),
+            _ => ("videomerge (no disponible)", false),
         };
 
         BtnVideomerge.Content = text;
@@ -373,19 +374,23 @@ public partial class DashboardView : Window
                 return;
             }
 
+            if (_videomergeState == ProvisionState.NotCloned)
+            {
+                BtnVideomerge.Content = "Clonando…";
+                var clone = await _provisioner.AcquireAsync(_videomerge);
+                if (!clone.Success)
+                    ShowToolError("La clonación de videomerge falló", clone);
+                await _tools.ReloadAsync();
+                await RefreshVideomergeAsync();
+                return;
+            }
+
             if (_videomergeState == ProvisionState.NotReady)
             {
                 BtnVideomerge.Content = "Preparando entorno…";
                 var result = await _provisioner.EnsureAsync(_videomerge);
                 if (!result.Success)
-                {
-                    string detail = Tail(result.Output, 12);
-                    MessageBox.Show(
-                        $"La preparación de videomerge falló (código {result.ExitCode}).\n\n" +
-                        (string.IsNullOrWhiteSpace(detail) ? "El comando no produjo salida." : detail) +
-                        $"\n\nLog completo: {LogService.GetLogPath()}",
-                        "videomerge", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
+                    ShowToolError("La preparación de videomerge falló", result);
                 await RefreshVideomergeAsync();
             }
         }
@@ -398,6 +403,16 @@ public partial class DashboardView : Window
         {
             UpdateToolUi();
         }
+    }
+
+    private static void ShowToolError(string title, ToolRunResult result)
+    {
+        string detail = Tail(result.Output, 12);
+        MessageBox.Show(
+            $"{title} (código {result.ExitCode}).\n\n" +
+            (string.IsNullOrWhiteSpace(detail) ? "El comando no produjo salida." : detail) +
+            $"\n\nLog completo: {LogService.GetLogPath()}",
+            "videomerge", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void BtnClose_Click(object sender, RoutedEventArgs e)
