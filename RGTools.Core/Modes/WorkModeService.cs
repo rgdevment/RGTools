@@ -53,10 +53,10 @@ public sealed class WorkModeService : IMode
         await _display.RestoreAsync().ConfigureAwait(false);
         await _tweaks.RestoreAsync().ConfigureAwait(false);
         await _silencer.RestoreAsync().ConfigureAwait(false);
-        await _power.RestoreAsync().ConfigureAwait(false);
+        await _power.ApplyPowerSaverAsync().ConfigureAwait(false);
 
         _notify.MinimumLevel = NotificationLevel.Info;
-        _notify.Notify("💼 Modo Trabajo", "Estado restaurado · plan equilibrado");
+        _notify.Notify("💼 Modo Trabajo", "Estado restaurado · plan de ahorro");
     }
 
     public Task DeactivateAsync(CancellationToken ct = default) => Task.CompletedTask;

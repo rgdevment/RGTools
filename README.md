@@ -35,7 +35,7 @@ Si no lo ves, está en los iconos ocultos (flecha `^`).
 
 | Perfil | Acción |
 |---|---|
-| 💼 **Trabajo** | Estado base. Restaura todo lo que Gaming haya modificado. |
+| 💼 **Trabajo** | Estado base. Restaura todo lo que Gaming haya modificado y aplica el plan **RGTools Power Saver** (ahorro afinado): tope de CPU al 99% (Turbo Boost off → imperceptible en trabajo ligero, ahorra consumo y temperatura), boost eficiente, mínimo de CPU bajo, core parking moderado, PCI-E ASPM al máximo y apagado de disco a 10 min. **No** toca suspensión USB, sleep ni apagado de pantalla. |
 | 🎮 **Gaming** | Cierra Docker (servicio + backend)/WSL2/LM Studio/Slack/Discord/Spark/WhatsApp/qBittorrent · plan Ultimate Performance (con fallback) · silencia notificaciones de Windows · fuerza el refresh máximo del monitor · optimiza red (throttling/Nagle off) · GPU Priority (con tu permiso). **No** toca Teams/VS Code/navegador ni abre launchers de juego. |
 
 Todas las operaciones que tocan el sistema (registro, hosts, plan de energía, servicios) usan
