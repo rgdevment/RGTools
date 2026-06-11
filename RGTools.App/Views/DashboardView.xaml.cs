@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -13,6 +14,12 @@ public partial class DashboardView : Window
     private readonly IJumpboxService _jumpboxService;
     private readonly IStartupService _startup;
     private readonly IModeManager _modeManager;
+    private readonly IToolRegistry _tools;
+    private readonly IToolProvisioner _provisioner;
+    private readonly IToolLauncher _launcher;
+
+    private ToolDescriptor? _videomerge;
+    private ProvisionState _videomergeState = ProvisionState.NotCloned;
 
     public DashboardView(
         IConfigService config,
@@ -20,7 +27,10 @@ public partial class DashboardView : Window
         IVpnService vpnService,
         IJumpboxService jumpboxService,
         IStartupService startup,
-        IModeManager modeManager)
+        IModeManager modeManager,
+        IToolRegistry tools,
+        IToolProvisioner provisioner,
+        IToolLauncher launcher)
     {
         LogService.Log("[UI] Initializing DashboardView components...");
         try
@@ -33,6 +43,9 @@ public partial class DashboardView : Window
             _jumpboxService = jumpboxService;
             _startup = startup;
             _modeManager = modeManager;
+            _tools = tools;
+            _provisioner = provisioner;
+            _launcher = launcher;
 
             ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
             ChkStartup.IsChecked = _config.Current.StartWithWindows;
@@ -112,6 +125,8 @@ public partial class DashboardView : Window
         {
             LogService.Log("[UI] Startup reconcile failed", ex);
         }
+
+        await RefreshVideomergeAsync();
     }
 
     private void OnVpnStatusChanged(bool isActive)
@@ -126,7 +141,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 583 : 508;
+        Height = isActive ? 700 : 625;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -298,6 +313,91 @@ public partial class DashboardView : Window
         BtnWork.IsEnabled = enabled;
         BtnGaming.IsEnabled = enabled;
         BtnBoost.IsEnabled = enabled;
+    }
+
+    private async Task RefreshVideomergeAsync()
+    {
+        _videomerge = _tools.Find("videomerge");
+        if (_videomerge == null)
+        {
+            _videomergeState = ProvisionState.NotCloned;
+            UpdateToolUi();
+            return;
+        }
+
+        try
+        {
+            _videomergeState = await _provisioner.DetectAsync(_videomerge);
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[UI-TOOL] videomerge detect failed", ex);
+            _videomergeState = ProvisionState.Broken;
+        }
+
+        UpdateToolUi();
+    }
+
+    private void UpdateToolUi()
+    {
+        (string text, bool enabled) = _videomergeState switch
+        {
+            ProvisionState.Ready => ("▶ Lanzar videomerge", true),
+            ProvisionState.NotReady => ("⚙ Preparar videomerge", true),
+            ProvisionState.Broken => ("videomerge (sin manifiesto)", false),
+            _ => ("videomerge (no encontrado)", false),
+        };
+
+        BtnVideomerge.Content = text;
+        BtnVideomerge.IsEnabled = enabled;
+    }
+
+    private static string Tail(string text, int lines)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        var nonEmpty = text.Replace("\r\n", "\n").Split('\n').Where(l => l.Trim().Length > 0);
+        return string.Join(Environment.NewLine, nonEmpty.TakeLast(lines));
+    }
+
+    private async void BtnTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (_videomerge == null) return;
+
+        BtnVideomerge.IsEnabled = false;
+        try
+        {
+            if (_videomergeState == ProvisionState.Ready)
+            {
+                if (!_launcher.Launch(_videomerge))
+                    MessageBox.Show("No se pudo lanzar videomerge.");
+                return;
+            }
+
+            if (_videomergeState == ProvisionState.NotReady)
+            {
+                BtnVideomerge.Content = "Preparando entorno…";
+                var result = await _provisioner.EnsureAsync(_videomerge);
+                if (!result.Success)
+                {
+                    string detail = Tail(result.Output, 12);
+                    MessageBox.Show(
+                        $"La preparación de videomerge falló (código {result.ExitCode}).\n\n" +
+                        (string.IsNullOrWhiteSpace(detail) ? "El comando no produjo salida." : detail) +
+                        $"\n\nLog completo: {LogService.GetLogPath()}",
+                        "videomerge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                await RefreshVideomergeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[UI-TOOL] videomerge action failed", ex);
+            MessageBox.Show($"Error con videomerge: {ex.Message}");
+        }
+        finally
+        {
+            UpdateToolUi();
+        }
     }
 
     private void BtnClose_Click(object sender, RoutedEventArgs e)

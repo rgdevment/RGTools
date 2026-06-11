@@ -1,7 +1,7 @@
 <Window x:Class="RGTools.App.Views.DashboardView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="RGTools" Height="508" Width="360"
+        Title="RGTools" Height="625" Width="360"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize">
@@ -155,6 +155,11 @@
                 <Button x:Name="BtnWork" Content="💼 Trabajo" Tag="Work" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
                 <Button x:Name="BtnGaming" Content="🎮 Gaming" Tag="Gaming" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
                 <Button x:Name="BtnBoost" Content="⚡ Boost (CPU máx.)" Tag="Boost" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
+
+                <Separator Background="#222" Margin="0,18,0,18" Height="1" BorderThickness="0"/>
+
+                <TextBlock Text="HERRAMIENTAS" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
+                <Button x:Name="BtnVideomerge" Content="videomerge" Style="{StaticResource ModeButton}" Click="BtnTool_Click" IsEnabled="False"/>
 
                 <Separator Background="#222" Margin="0,18,0,18" Height="1" BorderThickness="0"/>
 

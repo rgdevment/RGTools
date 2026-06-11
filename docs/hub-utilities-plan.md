@@ -107,8 +107,8 @@ disco) → **Preparar** (clonado pero entorno no listo, dispara `provision.comma
 
 | Estrategia | Para qué | Ensure (idempotente) |
 |---|---|---|
-| `PrebuiltExe` | binario ya compilado (Netmon opcional) | descargar/ubicar el `.exe` |
-| `ManagedPythonEnv` | repos Python (meet-copilot, videomerge, Netmon) | `uv sync` en entorno aislado por-tool |
+| `PrebuiltBinary` | binario ya compilado (Netmon opcional) | descargar/ubicar el `.exe` |
+| `ManagedEnv` | repos Python (meet-copilot, videomerge, Netmon) | `uv sync` en entorno aislado por-tool |
 | `ScriptInstaller` | requiere instalar deps de sistema (videomerge→ffmpeg) | correr el `.ps1` del repo (winget + verificación) |
 | `SystemPackage` | binario de sistema puro (winget) | `winget install …` |
 | `None` | ya disponible en el entorno (Jumpbox/WSL) | — |
@@ -128,12 +128,12 @@ Cómo cae cada utilidad real:
 | Herramienta | Provisión | Lanzamiento |
 |---|---|---|
 | **videomerge** | `ScriptInstaller` (reusa `install-windows.ps1`) | `Interpreter` → `uv run vm` |
-| **meet-copilot** | `ManagedPythonEnv` (uv, **sin `.exe`**) | `Interpreter` → `uv run` (GUI + secretos propios) |
-| **Netmon** | `ManagedPythonEnv` (recomendado) **o** `PrebuiltExe` (fallback) | `Interpreter` `uv run netmon` **o** `Exe` |
+| **meet-copilot** | `ManagedEnv` (uv, **sin `.exe`**) | `Interpreter` → `uv run` (GUI + secretos propios) |
+| **Netmon** | `ManagedEnv` (recomendado) **o** `PrebuiltBinary` (fallback) | `Interpreter` `uv run netmon` **o** `Exe` |
 | **Jumpbox** | `None` | `Wsl` (sin cambios) |
 | **Debloat ×3** | `None` (script embebido en RGTools) | `ScriptAction` (revertible) |
 
-> Para Netmon, `ManagedPythonEnv` evita compilar `aioquic` en el equipo del usuario (uv resuelve wheels
+> Para Netmon, `ManagedEnv` evita compilar `aioquic` en el equipo del usuario (uv resuelve wheels
 > precompilados) y elimina el mantenimiento del `.spec`. El `.exe` actual queda como fallback opcional;
 > la arquitectura soporta ambas estrategias para el mismo tool sin coste extra.
 
@@ -224,7 +224,7 @@ vive en el repo de la herramienta.
 - **El detalle de provisión/preflight/launch NO está en `tools.json`**: vive en el `.rgtool.json` de
   cada repo (legible solo tras clonar). `tools.json` solo dice "conozco esta herramienta y este es su repo".
 - **Versionado**: la versión la da el `version` del manifiesto (probe del propio tool). En
-  `PrebuiltExe`, respaldo por nombre de archivo (`Netmon-9.0.0.exe`) o `Sidecar` (`version.txt`).
+  `PrebuiltBinary`, respaldo por nombre de archivo (`Netmon-9.0.0.exe`) o `Sidecar` (`version.txt`).
 
 ## Dashboard y categorías
 
@@ -240,6 +240,23 @@ vive en el repo de la herramienta.
   `IToolLauncher`, `IInternalToolHandler` (WslJumpbox), `IRevertibleAction`×3, `ToolsHubViewModel`. En
   `OnStartup` tras `LoadAsync()`: `EnsureExtractedAsync()` (scripts) + `ReloadAsync()` (registry).
 
+## Estado de implementación
+
+**Piloto (videomerge) — hecho.** Pipeline end-to-end en `RGTools.Core/Tools/`: `ToolModels` (descriptor +
+manifiesto + enums), `ToolsJsonContext` (source-gen del `.rgtool.json`), `ToolRunner` (ejecuta vía
+`cmd /c` con `WorkingDirectory = repo`; launch en consola visible), `ToolRegistryService` (índice
+hardcoded de 1 entrada + descubrimiento por `ToolRoots` + lectura/validación del manifiesto),
+`ToolProvisionerService` (Detect/Ensure), `ToolLauncherService`. Tile "videomerge" en el dashboard con
+estados Preparar/Lanzar. 45 tests verdes. `AppSettings.ToolRoots` opcional (default D/C/E).
+
+**Pendiente antes de generalizar:**
+- **Quoting del runner**: `ToolRunner` pasa `cmd /c {commandLine}` crudo. Funciona para videomerge
+  (`uv sync`, `uv run vm`); Netmon usa comillas internas (`python -c "..."`) y meet-copilot usa `&&` +
+  rutas `.venv\Scripts\...` → validar/escapar antes de darlas de alta.
+- **De-elevación**: el launch hereda el token admin del host (TODO marcado en `ToolRunner.Launch`).
+- **git clone** (Discover→Clone) no implementado: los repos deben estar ya clonados.
+- **Índice**: hardcoded a videomerge; pasar a `tools.default.json` embebido al sumar herramientas.
+
 ## Etapas (roadmap)
 
 **Fase 1 — MVP del hub** (sin red, sin romper nada, usa lo que ya funciona):
@@ -251,16 +268,16 @@ compatibilidad para Jumpbox. **Entregable**: tiles por categoría, lanzar Netmon
 
 **Fase 2 — Descubrimiento + provisión real (`git` + `uv` + manifiestos por repo)**:
 descubrimiento por `ToolRoots` (D/C/E) + `AcquireAsync` (`git clone`) con tile **"Clonar"** ·
-`IToolProvisioner` + estrategia `ManagedPythonEnv` (uv) para meet-copilot y videomerge · estrategia
+`IToolProvisioner` + estrategia `ManagedEnv` (uv) para meet-copilot y videomerge · estrategia
 `ScriptInstaller` invocando `videomerge\install-windows.ps1` · lectura de `.rgtool.json` por repo ·
 `LaunchKind.Interpreter` (`uv run`) · tile gana estados **"Clonar"/"Preparar"** con progreso ·
 **de-elevación de procesos hijos** (invariante de seguridad) · retirar `IJumpboxService`/`JumboxFolderPath`
 (→ `ToolPaths["jumpbox"]`) · submenú "Herramientas" en el tray. **Se elimina** el empaquetado de
 meet-copilot a `.exe` del roadmap original.
 
-**Fase 3 — Auto-update**: GitHub Releases para `PrebuiltExe`/satélites
+**Fase 3 — Auto-update**: GitHub Releases para `PrebuiltBinary`/satélites
 (`IReleaseUpdater`/`GitHubReleaseUpdater`, `Repo`/`AssetPattern`, hash/firma, UI "v9.1.0 disponible").
-Los `ManagedPythonEnv` se actualizan con `uv sync` re-ejecutado cuando `Detect=Outdated`.
+Los `ManagedEnv` se actualizan con `uv sync` re-ejecutado cuando `Detect=Outdated`.
 
 **Fase 4 — Plugins .NET in-process** (`PluginAssembly`): contrato `IToolPlugin`, carga `plugins/*.dll`
 con `AssemblyLoadContext`. Solo si surge una utilidad nativa que justifique compartir el proceso.
@@ -288,7 +305,7 @@ unificado; `ToolsHubViewModel` + tiles + MVVM; source-gen JSON dedicado; fases 3
 `ProvisionStrategy` × `LaunchKind`; el detalle de provisión migra de `tools.json` central al
 **`.rgtool.json` por repo**; se añade `IToolProvisioner` y el flujo ensure-then-launch; el tile gana
 estado "Preparar"; de-elevación de hijos como invariante; empaquetar meet-copilot a `.exe` → sustituido
-por `ManagedPythonEnv`.
+por `ManagedEnv`.
 
 ## Riesgos
 
@@ -297,7 +314,7 @@ por `ManagedPythonEnv`.
    hash (scripts) + hash/firma y repo fijado (satélites, fase 3) + validación estricta de ruta tipo
    `JumpboxService`.
 3. **Primer arranque requiere red** (git clone + uv/winget): mitigado con estados "Clonar"/"Preparar"
-   explícitos y progreso; `PrebuiltExe` queda como ruta offline para Netmon si se necesita.
+   explícitos y progreso; `PrebuiltBinary` queda como ruta offline para Netmon si se necesita.
 3b. **Clonar como admin / origen del repo**: el `repoUrl` debe estar fijado en `tools.default.json`
    (bundled, no editable sin querer); requiere `git` en PATH (preflight); el clon hereda los mismos
    invariantes de de-elevación que el launch. Origen no confiable = superficie de ataque.

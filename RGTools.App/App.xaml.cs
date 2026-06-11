@@ -50,6 +50,8 @@ public partial class App : Application
 
             await _host.Services.GetRequiredService<IModeManager>().RestoreSessionAsync();
 
+            await _host.Services.GetRequiredService<IToolRegistry>().ReloadAsync();
+
             InitializeTrayIcon();
         }
         catch (Exception ex)
@@ -86,6 +88,11 @@ public partial class App : Application
         services.AddSingleton<IMode, GamingModeService>();
         services.AddSingleton<IMode, BoostModeService>();
         services.AddSingleton<IModeManager, ModeManager>();
+
+        services.AddSingleton<IToolRunner, ToolRunner>();
+        services.AddSingleton<IToolRegistry, ToolRegistryService>();
+        services.AddSingleton<IToolProvisioner, ToolProvisionerService>();
+        services.AddSingleton<IToolLauncher, ToolLauncherService>();
 
         services.AddSingleton<HealthCheckService>();
         services.AddHostedService(sp => sp.GetRequiredService<HealthCheckService>());

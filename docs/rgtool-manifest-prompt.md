@@ -1,104 +1,99 @@
-# Estandarizar un repo como herramienta del hub RGTools
+# Prompt: estandarizar un repo con un manifiesto `.rgtool.json`
 
-Prompt reutilizable para correr **un agente por repo** (aparte de RGTools) y dejar cada utilidad satélite
-conforme al estándar `.rgtool.json` que consume el hub. Ver el contrato completo en
-[`hub-utilities-plan.md`](./hub-utilities-plan.md).
+Prompt **autónomo y autocontenido** para correr en **cualquier** repositorio, individualmente. El agente
+solo conoce el repo donde se ejecuta — no sabe nada de RGTools, del hub ni de otros repos, y no lo
+necesita. Sirve igual sea cual sea el lenguaje o propósito del proyecto, ahora o en el futuro.
 
-Uso: copia el bloque de abajo a un agente, editando solo `REPO OBJETIVO`. Mismo prompt para los tres
-repos (Netmon, meet-copilot, videomerge). Un repo entra al registro del hub solo cuando expone un
-`.rgtool.json` válido; hasta entonces queda fuera ("No estandarizada").
+Uso: copia el bloque de abajo **tal cual** a un agente dentro del repo objetivo. No hay nada que editar.
+El esquema que produce es el contrato que el hub consumirá más tarde; ver
+[`hub-utilities-plan.md`](./hub-utilities-plan.md) para el lado del hub.
 
 ---
 
 ````text
-# Estandarizar este repo como herramienta del hub RGTools
+# Estandarizar este proyecto con un manifiesto .rgtool.json
 
-## REPO OBJETIVO  (edita estas 3 líneas por repo)
-- Ruta:      D:\Code\github_personal\videomerge
-- id:        videomerge
-- Categoría: Productivity        # uno de: Network | Privacy | Productivity | System | Database
+Estás trabajando dentro de un repositorio de software. Tu tarea es crear (o actualizar) un manifiesto
+estándar llamado `.rgtool.json` en la raíz de ESTE repositorio, que describa de forma declarativa cómo
+se prepara, valida, ejecuta y versiona este proyecto. Una herramienta externa leerá ese manifiesto para
+automatizar esas acciones; no necesitas saber cuál. Trabaja ÚNICAMENTE con el código de este repositorio:
+no asumas nada que no puedas verificar aquí. El manifiesto debe quedar correcto sea cual sea el lenguaje
+o propósito del proyecto.
 
-## Rol y objetivo
-Este repo se integrará como "herramienta satélite" de RGTools, una tray app .NET que descubre, prepara
-y lanza utilidades externas SIN empaquetarlas. Para que RGTools pueda hacerlo, este repo debe exponer un
-contrato estándar: un manifiesto `.rgtool.json` en su raíz, más los comandos de provisión, validación y
-lanzamiento que el manifiesto declara. Tu trabajo es dejar el repo conforme a ese estándar, verificando
-que cada comando declarado realmente funciona. NO inventes comandos: confírmalos inspeccionando y
-ejecutando en el repo.
+REGLA DE ORO: no inventes comandos. Cada comando que declares debe estar verificado — ejecutándolo o
+confirmándolo en la configuración del repo (manifest de paquetes, scripts, entrypoint).
 
-## Modelo (dos ejes)
-- Provisión (cómo dejar el repo LISTO):
-  - `ManagedPythonEnv`  → entorno Python aislado con `uv` (preferido para repos Python). Ensure = `uv sync`.
-  - `ScriptInstaller`   → hay deps de SISTEMA (ej. ffmpeg) que instalar; Ensure = un script idempotente
-                          (PowerShell + winget) que ya exista o que crees.
-  - `PrebuiltExe`       → ya se distribuye un .exe; Ensure = ubicarlo/descargarlo.
-  - `SystemPackage`     → es un binario de sistema puro (winget).
-  - `None`              → ya disponible sin preparación.
-- Lanzamiento (qué proceso arranca una vez listo):
-  - `Interpreter` (`uv run <cmd>`), `Exe`, `Wsl`.
-
-## Esquema de `.rgtool.json` (créalo en la raíz del repo)
-```jsonc
+## Esquema de `.rgtool.json` (créalo/actualízalo en la raíz)
 {
   "schema": 1,
-  "id": "<id>",
-  "name": "<Nombre legible>",
+  "id": "<identificador corto, normalmente el nombre del repo en kebab-case>",
+  "name": "<nombre legible>",
   "description": "<una línea: qué hace>",
-  "category": "<Network|Privacy|Productivity|System|Database>",
+  "category": "<una de: Network | Privacy | Productivity | System | Database>",
   "requirements": {
-    "runtime": "python>=3.10",            // versión REAL exigida (lee pyproject/requirements)
-    "system": ["ffmpeg>=4"]               // deps de sistema; [] si no hay. Informativo.
+    "runtime": "<runtime y versión mínima REALES; ej. python>=3.10, node>=20, dotnet>=8. Léelo de la config>",
+    "system": ["<dependencias de SISTEMA externas al runtime; ej. ffmpeg>=4. [] si no hay>"]
   },
   "provision": {
-    "strategy": "<ManagedPythonEnv|ScriptInstaller|PrebuiltExe|SystemPackage|None>",
-    "command": "<comando idempotente de preparación>"   // ej. "uv sync" o "pwsh -File scripts/install-windows.ps1"
+    "strategy": "<ManagedEnv | ScriptInstaller | PrebuiltBinary | SystemPackage | None>",
+    "command": "<comando idempotente que deja el proyecto LISTO; \"\" si strategy = None>"
   },
-  "preflight": "<comando que valida entorno LISTO; exit 0 = ok, !=0 = falta preparar>",
-  "launch": { "kind": "<Interpreter|Exe|Wsl>", "command": "<comando de arranque>" },
-  "version": "<comando que imprime la versión>",   // ej. "uv run <cli> --version"
-  "runAs": "deelevated"                  // el launch NO debe requerir admin salvo que sea imprescindible
+  "preflight": "<comando que devuelve exit 0 SOLO si el entorno está listo para ejecutar; \"\" si no aplica>",
+  "launch": { "kind": "<Exe | Interpreter>", "command": "<comando que arranca el proyecto>" },
+  "version": "<comando que imprime la versión; \"\" si no hay>",
+  "elevated": false
 }
-```
+
+### Significado de los valores
+- `provision.strategy`:
+  - `ManagedEnv`      → crea/sincroniza un entorno de dependencias aislado (ej. `uv sync`, `npm ci`, `dotnet restore`).
+  - `ScriptInstaller` → hay dependencias de SISTEMA que instalar; el comando es un script idempotente del repo.
+  - `PrebuiltBinary`  → se distribuye un binario ya compilado; el comando lo ubica o descarga.
+  - `SystemPackage`   → es un paquete del sistema operativo (gestor de paquetes del SO).
+  - `None`            → no requiere preparación.
+- `launch.kind`: `Interpreter` si corre a través de un runtime (`python -m`, `node`, `uv run`, `dotnet`);
+  `Exe` si es un binario ejecutable directo.
+- `elevated`: `true` solo si el lanzamiento EXIGE privilegios de administrador. Por defecto `false`.
 
 ## Pasos
-1. Inspecciona el repo: `pyproject.toml`/`requirements.txt`/`setup.py`/`*.csproj`, entrypoint real,
-   modo (CLI/TUI/GUI), scripts existentes (`scripts/`, `*.ps1`, `*.spec`), y deps de sistema (ffmpeg,
-   binarios nativos, GPU, claves/secretos en config).
-2. Decide `provision.strategy` con la tabla de arriba. Regla: repos Python sin dep de sistema →
-   `ManagedPythonEnv` (uv). Con dep de sistema versión-crítica (ffmpeg, etc.) → `ScriptInstaller`.
-3. COMPLETA LO QUE FALTE (idempotente, Windows-first con `pwsh`/`winget`, re-ejecutable sin romper):
-   - Si no hay comando de provisión funcional → créalo. Para Python, asegura que `uv sync` funciona
-     (añade/ajusta `pyproject.toml` con sus deps si hace falta). Para deps de sistema, crea/ajusta
-     `scripts/install-windows.ps1` que detecte e instale lo necesario y verifique versiones mínimas.
-   - Si no hay `preflight` → añádelo: un comando que devuelva exit 0 sólo si el entorno está listo
-     (intérprete + deps + binarios de sistema presentes y en versión mínima). Si el CLI no tiene un
-     subcomando de chequeo, agrega uno (`--doctor`/`doctor`) o un pequeño script `scripts/preflight.ps1`.
-   - Asegura un comando `version` fiable.
-4. Verifica EJECUTANDO: corre `provision.command` en limpio, luego `preflight` (debe dar 0), luego
-   `version` y un `launch` que arranque sin requerir admin. No marques un comando en el manifiesto que
-   no hayas confirmado.
-5. Escribe `.rgtool.json` en la raíz con los comandos verificados.
+1. Identifica lenguaje, runtime y versión mínima reales (lee `pyproject.toml`/`requirements.txt`,
+   `package.json`, `*.csproj`, `go.mod`, etc.) y la forma de ejecución (CLI, TUI, GUI, servicio).
+2. Detecta dependencias de SISTEMA externas al runtime (binarios en PATH, librerías nativas, servicios).
+3. Elige `provision.strategy` según la tabla de arriba.
+4. COMPLETA LO QUE FALTE, de forma idempotente y sin romper el uso actual del proyecto:
+   - Si no hay forma fiable de preparar el entorno → crea el comando/script de provisión (preferir un
+     entorno aislado por proyecto; un script del repo cuando haya dependencias de sistema).
+   - Si no hay forma de comprobar que el entorno está listo → añade un `preflight`: un subcomando tipo
+     `--doctor`/`doctor` o un pequeño script que valide runtime + dependencias + binarios de sistema en
+     su versión mínima, devolviendo exit 0 solo si todo está OK.
+   - Asegura un comando de `version` fiable si el proyecto puede exponerlo.
+5. VERIFICA EJECUTANDO: corre `provision.command` en limpio, luego `preflight` (debe dar exit 0), luego
+   `version` y un `launch` que arranque correctamente. No declares un comando que no hayas confirmado.
+6. Escribe `.rgtool.json` en la raíz con los comandos verificados.
 
 ## Restricciones
-- NO rompas el uso actual del repo (no cambies su CLI/entrypoint público; solo añade lo necesario).
-- Idempotencia obligatoria en todo lo de provisión: re-ejecutar debe ser seguro.
-- El lanzamiento corre de-elevado (sin heredar admin); si algo exige privilegios, decláralo y justifícalo.
-- No subas secretos al manifiesto; las claves/API se quedan en la config propia del repo.
+- No cambies la interfaz pública del proyecto (CLI/entrypoint); solo añade lo necesario.
+- Idempotencia obligatoria en la provisión: re-ejecutar debe ser seguro.
+- No incluyas secretos ni credenciales en el manifiesto.
+- El lanzamiento no debe requerir administrador salvo que sea imprescindible (`elevated: true` + justifícalo en el reporte).
 
 ## Entregable (reporte final)
-- Lista de archivos creados/modificados (`.rgtool.json` + scripts).
+- Archivos creados/modificados (`.rgtool.json` + scripts si los hubo).
 - Para cada comando del manifiesto: cómo lo verificaste y el resultado (exit code / salida resumida).
-- GAPS que dejaste pendientes y por qué (ej. "preflight no valida la versión de ffmpeg porque…").
-- Confirmación de que el repo sigue funcionando como antes.
+- Gaps que dejaste pendientes y por qué.
+- Confirmación de que el proyecto sigue funcionando como antes.
 ````
 
 ---
 
-## Notas por repo
+## Notas (lado RGTools, NO parte del prompt)
 
-- **videomerge** — el más rápido: ya tiene `scripts\install-windows.ps1` idempotente (winget + ffmpeg).
-  Estrategia `ScriptInstaller`. Falta formalizar `preflight` (verificar ffmpeg/SVT-AV1) y el manifiesto.
-- **meet-copilot** — el que más completar: no tiene install ni preflight, GUI CustomTkinter, maneja
-  secretos y LM Studio externo. Estrategia `ManagedPythonEnv` (uv), **sin `.exe`**.
-- **Netmon** — intermedio: ya tiene PyInstaller (`netmon.spec`). Decidir `ManagedPythonEnv` (uv,
-  recomendado: evita compilar `aioquic`) vs `PrebuiltExe` (su `.exe` actual, ruta offline).
+Guía interna para dar de alta cada repo en el hub una vez estandarizado. El agente que corre el prompt
+no ve esto.
+
+- **videomerge** — `ScriptInstaller` (ya tiene `scripts\install-windows.ps1`: winget + ffmpeg). Falta
+  formalizar `preflight` (verificar ffmpeg/SVT-AV1) y el manifiesto. Categoría `Productivity`.
+- **meet-copilot** — `ManagedEnv` (uv, **sin binario**); no tiene install ni preflight, GUI + secretos +
+  LM Studio externo. El que más completar. Categoría `Productivity`.
+- **Netmon** — `ManagedEnv` (uv, recomendado: evita compilar `aioquic`) o `PrebuiltBinary` (su `.exe`
+  actual, ruta offline). Categoría `Network`.

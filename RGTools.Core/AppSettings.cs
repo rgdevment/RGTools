@@ -15,6 +15,8 @@ public record AppSettings
     public ConsentSettings Consent { get; init; } = new();
 
     public string? JumboxFolderPath { get; init; }
+
+    public string[]? ToolRoots { get; init; }
 }
 
 public record ConsentSettings
