@@ -93,6 +93,7 @@ public partial class App : Application
         services.AddSingleton<IToolRegistry, ToolRegistryService>();
         services.AddSingleton<IToolProvisioner, ToolProvisionerService>();
         services.AddSingleton<IToolLauncher, ToolLauncherService>();
+        services.AddSingleton<IToolArtifacts, ToolArtifactService>();
 
         services.AddSingleton<HealthCheckService>();
         services.AddHostedService(sp => sp.GetRequiredService<HealthCheckService>());

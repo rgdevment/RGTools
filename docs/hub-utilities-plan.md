@@ -242,24 +242,31 @@ vive en el repo de la herramienta.
 
 ## Estado de implementación
 
-**Piloto (videomerge) — hecho, ciclo completo Clonar→Preparar→Lanzar.** Pipeline end-to-end en
+**Las 3 herramientas integradas — ciclo completo Clonar→Preparar→Lanzar.** Pipeline end-to-end en
 `RGTools.Core/Tools/`: `ToolModels` (descriptor + manifiesto + `ToolRunResult` + enums), `ToolsJsonContext`
 (source-gen del `.rgtool.json`), `ToolRunner` (ejecuta vía `cmd /c` con `WorkingDirectory = repo`,
-captura/loguea salida; launch en consola visible), `ToolRegistryService` (índice hardcoded con `repoUrl`
+captura/loguea salida; launch en consola visible), `ToolRegistryService` (índice con `repoUrl`
 + descubrimiento por `ToolRoots` + `CloneTarget` + lectura/validación del manifiesto),
-`ToolProvisionerService` (Detect/**Acquire** git clone/Ensure), `ToolLauncherService`. Tile "videomerge"
-en el dashboard con 4 estados (Clonar/Preparar/Lanzar/no disponible); los fallos muestran código + cola
-de la salida + ruta del log. 49 tests verdes. `AppSettings.ToolRoots` opcional (default D/C/E); el clone
-cae en la primera root (`D:\Code\github_personal`). URLs SSH (`git@github.com:rgdevment/<repo>.git`).
+`ToolProvisionerService` (Detect/**Acquire** git clone/Ensure), `ToolLauncherService`. Índice:
+videomerge, netmon, meet-copilot (URLs SSH `git@github.com:rgdevment/<repo>.git`). El dashboard genera
+**un tile dinámico por herramienta** (`ToolsPanel`) con 4 estados (Clonar/Preparar/Lanzar/no disponible);
+los fallos muestran código + cola de la salida + ruta del log. **Artefactos**: si el manifiesto declara
+`artifacts`, el tile muestra un botón "📄 {label} (N)" con menú de archivos recientes que abre con el visor
+por defecto (`ToolArtifactService`: `path` relativa al repo o absoluta con `%VAR%`, glob `**/` recursivo,
+`limit` por recencia). 54 tests verdes. **Scripts de debloat: DESCARTADOS** (casos borde, fuera del hub).
+`AppSettings.ToolRoots`
+opcional (default D/C/E); el clone cae en la primera root (`D:\Code\github_personal`).
 
-**Pendiente antes de generalizar:**
-- **Quoting del runner**: `ToolRunner` pasa `cmd /c {commandLine}` crudo. Funciona para videomerge
-  (`uv sync`, `uv run vm`); Netmon usa comillas internas (`python -c "..."`) y meet-copilot usa `&&` +
-  rutas `.venv\Scripts\...` → validar/escapar antes de darlas de alta.
-- **De-elevación**: el launch (y el clone SSH) heredan el token admin del host (TODO en `ToolRunner.Launch`).
+Comportamiento por herramienta (por su manifiesto): **videomerge** autovalente (`uv run` auto-sincroniza →
+salta Preparar); **netmon** usa `uv run --no-sync` → requiere Preparar explícito (`uv sync --inexact`);
+**meet-copilot** lanza desde `.venv\Scripts\python.exe` → requiere Preparar (`uv venv && uv pip install`).
+El runner `cmd /c` sin comillas envolventes maneja el `&&` y las comillas internas de esos comandos.
+
+**Pendiente (no bloquea el uso actual):**
+- **De-elevación**: launch y clone SSH heredan el token admin del host (TODO en `ToolRunner.Launch`).
   El clone SSH exige llaves/agent accesibles al proceso.
 - **`uv`/`git` por PATH**: resolver por ruta absoluta para no depender del PATH del proceso elevado.
-- **Índice**: hardcoded a videomerge; pasar a `tools.default.json` embebido al sumar herramientas.
+- **Índice**: hardcoded en `ToolRegistryService`; pasar a `tools.default.json` embebido.
 
 ## Etapas (roadmap)
 

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace RGTools.App.Core;
 
 public enum ToolCategory { Network, Privacy, Productivity, System, Database }
@@ -31,6 +33,14 @@ public sealed record ToolLaunchSpec
     public string Command { get; init; } = "";
 }
 
+public sealed record ToolArtifact
+{
+    public string Label { get; init; } = "";
+    public string Path { get; init; } = "";
+    public string Pattern { get; init; } = "*";
+    public int Limit { get; init; }
+}
+
 public sealed record ToolManifest
 {
     public int Schema { get; init; }
@@ -44,6 +54,7 @@ public sealed record ToolManifest
     public ToolLaunchSpec Launch { get; init; } = new();
     public string Version { get; init; } = "";
     public bool Elevated { get; init; }
+    public ToolArtifact[] Artifacts { get; init; } = Array.Empty<ToolArtifact>();
 }
 
 public sealed record ToolIndexEntry(string Id, string Folder, string RepoUrl);
@@ -60,3 +71,7 @@ public sealed record ToolDescriptor
     public bool IsValid => Manifest is { Schema: 1 };
     public string DisplayName => Manifest?.Name ?? Id;
 }
+
+public sealed record ArtifactFile(string Name, string FullPath, DateTime Modified);
+
+public sealed record ArtifactGroup(string Label, IReadOnlyList<ArtifactFile> Files);

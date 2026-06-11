@@ -41,7 +41,10 @@ confirmándolo en la configuración del repo (manifest de paquetes, scripts, ent
   "preflight": "<comando que devuelve exit 0 SOLO si el entorno está listo para ejecutar; \"\" si no aplica>",
   "launch": { "kind": "<Exe | Interpreter>", "command": "<comando que arranca el proyecto>" },
   "version": "<comando que imprime la versión; \"\" si no hay>",
-  "elevated": false
+  "elevated": false,
+  "artifacts": [
+    { "label": "<nombre legible, ej. Reportes>", "path": "<carpeta de salidas: relativa al repo o absoluta con %VARS%>", "pattern": "<glob, ej. report-*.txt o **/*_MINUTA.md>", "limit": 0 }
+  ]
 }
 
 ### Significado de los valores
@@ -54,10 +57,16 @@ confirmándolo en la configuración del repo (manifest de paquetes, scripts, ent
 - `launch.kind`: `Interpreter` si corre a través de un runtime (`python -m`, `node`, `uv run`, `dotnet`);
   `Exe` si es un binario ejecutable directo.
 - `elevated`: `true` solo si el lanzamiento EXIGE privilegios de administrador. Por defecto `false`.
+- `artifacts` (opcional): archivos de salida que el proyecto genera y que conviene abrir desde fuera
+  (reportes, minutas, exports). `path` admite ruta relativa al repo o absoluta con variables de entorno
+  (`%VAR%`); `pattern` es un glob (`**/` = recursivo); `limit` 0 = todos, N = solo los N más recientes por
+  fecha. Omite el campo o usa `[]` si el proyecto no genera salidas relevantes.
 
 ## Pasos
 1. Identifica lenguaje, runtime y versión mínima reales (lee `pyproject.toml`/`requirements.txt`,
-   `package.json`, `*.csproj`, `go.mod`, etc.) y la forma de ejecución (CLI, TUI, GUI, servicio).
+   `package.json`, `*.csproj`, `go.mod`, etc.) y la forma de ejecución (CLI, TUI, GUI, servicio). Detecta
+   también si el proyecto GENERA archivos de salida (reportes, minutas, exports) y en qué carpeta, para
+   declararlos en `artifacts`.
 2. Detecta dependencias de SISTEMA externas al runtime (binarios en PATH, librerías nativas, servicios).
 3. Elige `provision.strategy` según la tabla de arriba.
 4. COMPLETA LO QUE FALTE, de forma idempotente y sin romper el uso actual del proyecto:

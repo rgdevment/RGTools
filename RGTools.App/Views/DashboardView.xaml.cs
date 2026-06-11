@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,9 +18,11 @@ public partial class DashboardView : Window
     private readonly IToolRegistry _tools;
     private readonly IToolProvisioner _provisioner;
     private readonly IToolLauncher _launcher;
+    private readonly IToolArtifacts _artifacts;
 
-    private ToolDescriptor? _videomerge;
-    private ProvisionState _videomergeState = ProvisionState.NotCloned;
+    private readonly Dictionary<string, Button> _toolButtons = new();
+    private readonly Dictionary<string, Button> _artifactButtons = new();
+    private readonly Dictionary<string, ProvisionState> _toolStates = new();
 
     public DashboardView(
         IConfigService config,
@@ -30,7 +33,8 @@ public partial class DashboardView : Window
         IModeManager modeManager,
         IToolRegistry tools,
         IToolProvisioner provisioner,
-        IToolLauncher launcher)
+        IToolLauncher launcher,
+        IToolArtifacts artifacts)
     {
         LogService.Log("[UI] Initializing DashboardView components...");
         try
@@ -46,6 +50,7 @@ public partial class DashboardView : Window
             _tools = tools;
             _provisioner = provisioner;
             _launcher = launcher;
+            _artifacts = artifacts;
 
             ChkDns.IsChecked = _config.Current.DnsGuardianEnabled;
             ChkStartup.IsChecked = _config.Current.StartWithWindows;
@@ -126,7 +131,8 @@ public partial class DashboardView : Window
             LogService.Log("[UI] Startup reconcile failed", ex);
         }
 
-        await RefreshVideomergeAsync();
+        BuildToolTiles();
+        await RefreshToolsAsync();
     }
 
     private void OnVpnStatusChanged(bool isActive)
@@ -141,7 +147,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 700 : 625;
+        Height = isActive ? 895 : 820;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -315,42 +321,162 @@ public partial class DashboardView : Window
         BtnBoost.IsEnabled = enabled;
     }
 
-    private async Task RefreshVideomergeAsync()
+    private void BuildToolTiles()
     {
-        _videomerge = _tools.Find("videomerge");
-        if (_videomerge == null)
+        ToolsPanel.Children.Clear();
+        _toolButtons.Clear();
+
+        foreach (var tool in _tools.All)
         {
-            _videomergeState = ProvisionState.NotCloned;
-            UpdateToolUi();
+            var btn = new Button
+            {
+                Style = (Style)FindResource("ModeButton"),
+                Tag = tool.Id,
+                Content = tool.DisplayName,
+                IsEnabled = false
+            };
+            btn.Click += BtnTool_Click;
+
+            ToolsPanel.Children.Add(btn);
+            _toolButtons[tool.Id] = btn;
+
+            var artBtn = new Button
+            {
+                Style = (Style)FindResource("ModeButton"),
+                Tag = tool.Id,
+                Height = 34,
+                Visibility = Visibility.Collapsed
+            };
+            artBtn.Click += (_, _) =>
+            {
+                if (artBtn.ContextMenu is { Items.Count: > 0 } menu)
+                {
+                    menu.PlacementTarget = artBtn;
+                    menu.IsOpen = true;
+                }
+            };
+            ToolsPanel.Children.Add(artBtn);
+            _artifactButtons[tool.Id] = artBtn;
+        }
+    }
+
+    private async Task RefreshToolsAsync()
+    {
+        foreach (var tool in _tools.All)
+        {
+            if (!_toolButtons.TryGetValue(tool.Id, out var btn)) continue;
+
+            ProvisionState state;
+            try
+            {
+                state = await _provisioner.DetectAsync(tool);
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[UI-TOOL] {tool.Id} detect failed", ex);
+                state = ProvisionState.Broken;
+            }
+
+            _toolStates[tool.Id] = state;
+            UpdateToolButton(tool, btn, state);
+            RefreshArtifacts(tool);
+        }
+    }
+
+    private void RefreshArtifacts(ToolDescriptor tool)
+    {
+        if (!_artifactButtons.TryGetValue(tool.Id, out var btn)) return;
+
+        var group = _artifacts.List(tool).FirstOrDefault(g => g.Files.Count > 0);
+        if (group == null)
+        {
+            btn.Visibility = Visibility.Collapsed;
+            btn.ContextMenu = null;
             return;
         }
 
+        var menu = new ContextMenu();
+        foreach (var file in group.Files)
+        {
+            var item = new MenuItem { Header = $"{file.Name}   ({file.Modified:yyyy-MM-dd HH:mm})" };
+            string path = file.FullPath;
+            item.Click += (_, _) =>
+            {
+                if (!_artifacts.Open(path))
+                    MessageBox.Show("No se pudo abrir el archivo.");
+            };
+            menu.Items.Add(item);
+        }
+
+        btn.Content = $"📄 {group.Label} ({group.Files.Count})";
+        btn.ContextMenu = menu;
+        btn.Visibility = Visibility.Visible;
+    }
+
+    private static void UpdateToolButton(ToolDescriptor tool, Button btn, ProvisionState state)
+    {
+        (string text, bool enabled) = state switch
+        {
+            ProvisionState.Ready => ($"▶ Lanzar {tool.DisplayName}", true),
+            ProvisionState.NotReady => ($"⚙ Preparar {tool.DisplayName}", true),
+            ProvisionState.NotCloned => ($"⬇ Clonar {tool.DisplayName}", true),
+            ProvisionState.Broken => ($"{tool.DisplayName} (sin manifiesto)", false),
+            _ => ($"{tool.DisplayName} (no disponible)", false),
+        };
+
+        btn.Content = text;
+        btn.IsEnabled = enabled;
+    }
+
+    private async void BtnTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string id) return;
+
+        var tool = _tools.Find(id);
+        if (tool == null) return;
+
+        var state = _toolStates.GetValueOrDefault(id, ProvisionState.Broken);
+        btn.IsEnabled = false;
         try
         {
-            _videomergeState = await _provisioner.DetectAsync(_videomerge);
+            if (state == ProvisionState.Ready)
+            {
+                if (!_launcher.Launch(tool))
+                    MessageBox.Show($"No se pudo lanzar {tool.DisplayName}.");
+                return;
+            }
+
+            if (state == ProvisionState.NotCloned)
+            {
+                btn.Content = "Clonando…";
+                var clone = await _provisioner.AcquireAsync(tool);
+                if (!clone.Success)
+                    ShowToolError($"La clonación de {tool.DisplayName} falló", clone);
+                await _tools.ReloadAsync();
+                await RefreshToolsAsync();
+                return;
+            }
+
+            if (state == ProvisionState.NotReady)
+            {
+                btn.Content = "Preparando entorno…";
+                var result = await _provisioner.EnsureAsync(tool);
+                if (!result.Success)
+                    ShowToolError($"La preparación de {tool.DisplayName} falló", result);
+                await RefreshToolsAsync();
+            }
         }
         catch (Exception ex)
         {
-            LogService.Log("[UI-TOOL] videomerge detect failed", ex);
-            _videomergeState = ProvisionState.Broken;
+            LogService.Log($"[UI-TOOL] {id} action failed", ex);
+            MessageBox.Show($"Error con {tool.DisplayName}: {ex.Message}");
         }
-
-        UpdateToolUi();
-    }
-
-    private void UpdateToolUi()
-    {
-        (string text, bool enabled) = _videomergeState switch
+        finally
         {
-            ProvisionState.Ready => ("▶ Lanzar videomerge", true),
-            ProvisionState.NotReady => ("⚙ Preparar videomerge", true),
-            ProvisionState.NotCloned => ("⬇ Clonar videomerge", true),
-            ProvisionState.Broken => ("videomerge (sin manifiesto)", false),
-            _ => ("videomerge (no disponible)", false),
-        };
-
-        BtnVideomerge.Content = text;
-        BtnVideomerge.IsEnabled = enabled;
+            var current = _tools.Find(id);
+            if (current != null && _toolButtons.TryGetValue(id, out var b))
+                UpdateToolButton(current, b, _toolStates.GetValueOrDefault(id, ProvisionState.Broken));
+        }
     }
 
     private static string Tail(string text, int lines)
@@ -360,51 +486,6 @@ public partial class DashboardView : Window
         return string.Join(Environment.NewLine, nonEmpty.TakeLast(lines));
     }
 
-    private async void BtnTool_Click(object sender, RoutedEventArgs e)
-    {
-        if (_videomerge == null) return;
-
-        BtnVideomerge.IsEnabled = false;
-        try
-        {
-            if (_videomergeState == ProvisionState.Ready)
-            {
-                if (!_launcher.Launch(_videomerge))
-                    MessageBox.Show("No se pudo lanzar videomerge.");
-                return;
-            }
-
-            if (_videomergeState == ProvisionState.NotCloned)
-            {
-                BtnVideomerge.Content = "Clonando…";
-                var clone = await _provisioner.AcquireAsync(_videomerge);
-                if (!clone.Success)
-                    ShowToolError("La clonación de videomerge falló", clone);
-                await _tools.ReloadAsync();
-                await RefreshVideomergeAsync();
-                return;
-            }
-
-            if (_videomergeState == ProvisionState.NotReady)
-            {
-                BtnVideomerge.Content = "Preparando entorno…";
-                var result = await _provisioner.EnsureAsync(_videomerge);
-                if (!result.Success)
-                    ShowToolError("La preparación de videomerge falló", result);
-                await RefreshVideomergeAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            LogService.Log("[UI-TOOL] videomerge action failed", ex);
-            MessageBox.Show($"Error con videomerge: {ex.Message}");
-        }
-        finally
-        {
-            UpdateToolUi();
-        }
-    }
-
     private static void ShowToolError(string title, ToolRunResult result)
     {
         string detail = Tail(result.Output, 12);
@@ -412,7 +493,7 @@ public partial class DashboardView : Window
             $"{title} (código {result.ExitCode}).\n\n" +
             (string.IsNullOrWhiteSpace(detail) ? "El comando no produjo salida." : detail) +
             $"\n\nLog completo: {LogService.GetLogPath()}",
-            "videomerge", MessageBoxButton.OK, MessageBoxImage.Warning);
+            "Herramientas", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void BtnClose_Click(object sender, RoutedEventArgs e)

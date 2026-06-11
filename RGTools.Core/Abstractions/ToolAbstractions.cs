@@ -27,3 +27,12 @@ public interface IToolLauncher
 {
     bool Launch(ToolDescriptor tool);
 }
+
+public interface IToolArtifacts
+{
+    // Resolves each artifact spec of the tool's manifest to its files (newest first, capped by Limit).
+    IReadOnlyList<ArtifactGroup> List(ToolDescriptor tool);
+
+    // Opens a file with the OS default handler.
+    bool Open(string fullPath);
+}

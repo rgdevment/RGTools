@@ -9,6 +9,8 @@ public sealed class ToolRegistryService : IToolRegistry
     private static readonly ToolIndexEntry[] Index =
     {
         new("videomerge", "videomerge", "git@github.com:rgdevment/videomerge.git"),
+        new("netmon", "Netmon", "git@github.com:rgdevment/Netmon.git"),
+        new("meet-copilot", "meet-copilot", "git@github.com:rgdevment/meet-copilot.git"),
     };
 
     private static readonly string[] DefaultRoots =
