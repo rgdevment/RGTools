@@ -131,6 +131,7 @@ public partial class DashboardView : Window
             LogService.Log("[UI] Startup reconcile failed", ex);
         }
 
+        await _tools.ReloadAsync();
         BuildToolTiles();
         await RefreshToolsAsync();
     }
@@ -147,7 +148,7 @@ public partial class DashboardView : Window
         BtnVpn.Tag = isActive ? "ON" : "OFF";
         BtnVpn.IsEnabled = true;
 
-        Height = isActive ? 895 : 820;
+        Height = isActive ? 805 : 730;
 
         BtnJumpbox.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
 
@@ -328,6 +329,10 @@ public partial class DashboardView : Window
 
         foreach (var tool in _tools.All)
         {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
             var btn = new Button
             {
                 Style = (Style)FindResource("ModeButton"),
@@ -336,15 +341,15 @@ public partial class DashboardView : Window
                 IsEnabled = false
             };
             btn.Click += BtnTool_Click;
-
-            ToolsPanel.Children.Add(btn);
+            Grid.SetColumn(btn, 0);
+            row.Children.Add(btn);
             _toolButtons[tool.Id] = btn;
 
             var artBtn = new Button
             {
                 Style = (Style)FindResource("ModeButton"),
                 Tag = tool.Id,
-                Height = 34,
+                Margin = new Thickness(8, 0, 0, 10),
                 Visibility = Visibility.Collapsed
             };
             artBtn.Click += (_, _) =>
@@ -355,8 +360,11 @@ public partial class DashboardView : Window
                     menu.IsOpen = true;
                 }
             };
-            ToolsPanel.Children.Add(artBtn);
+            Grid.SetColumn(artBtn, 1);
+            row.Children.Add(artBtn);
             _artifactButtons[tool.Id] = artBtn;
+
+            ToolsPanel.Children.Add(row);
         }
     }
 
@@ -408,7 +416,8 @@ public partial class DashboardView : Window
             menu.Items.Add(item);
         }
 
-        btn.Content = $"📄 {group.Label} ({group.Files.Count})";
+        btn.Content = $"📄 {group.Files.Count}";
+        btn.ToolTip = group.Label;
         btn.ContextMenu = menu;
         btn.Visibility = Visibility.Visible;
     }
@@ -441,6 +450,22 @@ public partial class DashboardView : Window
         {
             if (state == ProvisionState.Ready)
             {
+                btn.Content = "Actualizando…";
+                var update = await _provisioner.UpdateAsync(tool);
+                if (update.Outcome == UpdateOutcome.Updated)
+                {
+                    // El pull pudo traer dependencias nuevas y los manifiestos lanzan con --no-sync.
+                    btn.Content = "Preparando entorno…";
+                    var ensure = await _provisioner.EnsureAsync(tool);
+                    if (!ensure.Success)
+                    {
+                        ShowToolError($"La preparación de {tool.DisplayName} tras actualizar falló", ensure);
+                        return;
+                    }
+                    await _tools.ReloadAsync();
+                    tool = _tools.Find(id) ?? tool;
+                }
+
                 if (!_launcher.Launch(tool))
                     MessageBox.Show($"No se pudo lanzar {tool.DisplayName}.");
                 return;

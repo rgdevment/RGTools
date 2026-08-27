@@ -120,6 +120,101 @@ public class ToolPilotTests
         Assert.Contains("uv", result.Output);
     }
 
+    private static IToolRunner GitRunner(string status = "", int statusCode = 0,
+                                        int pullCode = 0, string head = "aaa", string headAfter = "aaa")
+    {
+        var runner = Substitute.For<IToolRunner>();
+        runner.RunAsync("git status --porcelain --untracked-files=no", @"C:
+epo", Arg.Any<CancellationToken>())
+              .Returns(new ToolRunResult(statusCode, status));
+        runner.RunAsync("git pull --ff-only", @"C:
+epo", Arg.Any<CancellationToken>())
+              .Returns(new ToolRunResult(pullCode, pullCode == 0 ? "" : "divergieron"));
+        runner.RunAsync("git rev-parse HEAD", @"C:
+epo", Arg.Any<CancellationToken>())
+              .Returns(new ToolRunResult(0, head), new ToolRunResult(0, headAfter));
+        return runner;
+    }
+
+    [Fact]
+    public async Task Update_Skipped_WhenNotCloned()
+    {
+        var p = new ToolProvisionerService(Substitute.For<IToolRunner>());
+        var result = await p.UpdateAsync(Tool(null, null));
+        Assert.Equal(UpdateOutcome.Skipped, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Update_Skipped_WhenWorkingTreeHasLocalChanges()
+    {
+        var runner = GitRunner(status: " M src/app.py");
+        var p = new ToolProvisionerService(runner);
+
+        var result = await p.UpdateAsync(Tool(@"C:
+epo", Manifest()));
+
+        Assert.Equal(UpdateOutcome.Skipped, result.Outcome);
+        await runner.DidNotReceive().RunAsync("git pull --ff-only", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Update_Skipped_WhenNotAGitRepo()
+    {
+        var runner = GitRunner(status: "fatal: not a git repository", statusCode: 128);
+        var p = new ToolProvisionerService(runner);
+
+        var result = await p.UpdateAsync(Tool(@"C:
+epo", Manifest()));
+
+        Assert.Equal(UpdateOutcome.Skipped, result.Outcome);
+        await runner.DidNotReceive().RunAsync("git pull --ff-only", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Update_UntrackedFilesDoNotBlockThePull()
+    {
+        var runner = GitRunner(head: "aaa", headAfter: "bbb");
+        var p = new ToolProvisionerService(runner);
+
+        var result = await p.UpdateAsync(Tool(@"C:
+epo", Manifest()));
+
+        Assert.Equal(UpdateOutcome.Updated, result.Outcome);
+        await runner.Received(1).RunAsync("git status --porcelain --untracked-files=no", @"C:
+epo", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Update_UpToDate_WhenHeadDoesNotMove()
+    {
+        var p = new ToolProvisionerService(GitRunner(head: "aaa", headAfter: "aaa"));
+        var result = await p.UpdateAsync(Tool(@"C:
+epo", Manifest()));
+        Assert.Equal(UpdateOutcome.UpToDate, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Update_Failed_WhenPullIsNotFastForward()
+    {
+        var p = new ToolProvisionerService(GitRunner(pullCode: 1));
+        var result = await p.UpdateAsync(Tool(@"C:
+epo", Manifest()));
+        Assert.Equal(UpdateOutcome.Failed, result.Outcome);
+    }
+
+    [Fact]
+    public async Task DefaultRoots_PointAtTheGithubFolder()
+    {
+        var config = Substitute.For<IConfigService>();
+        config.Current.Returns(new AppSettings());
+
+        var registry = new ToolRegistryService(config);
+        await registry.ReloadAsync();
+
+        Assert.All(registry.All, t => Assert.DoesNotContain("github_personal", t.CloneTarget));
+        Assert.All(registry.All, t => Assert.Contains(@"\Code\github\", t.CloneTarget));
+    }
+
     [Fact]
     public void Launch_UsesManifestCommandAndRepo()
     {

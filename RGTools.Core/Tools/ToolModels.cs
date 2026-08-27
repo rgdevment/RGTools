@@ -10,6 +10,10 @@ public enum LaunchKind { Exe, Interpreter }
 
 public enum ProvisionState { NotCloned, NotReady, Ready, Broken }
 
+public enum UpdateOutcome { Skipped, UpToDate, Updated, Failed }
+
+public sealed record ToolUpdateResult(UpdateOutcome Outcome, string Output);
+
 public sealed record ToolRunResult(int ExitCode, string Output)
 {
     public bool Success => ExitCode == 0;

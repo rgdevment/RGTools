@@ -15,9 +15,9 @@ public sealed class ToolRegistryService : IToolRegistry
 
     private static readonly string[] DefaultRoots =
     {
-        @"D:\Code\github_personal",
-        @"C:\Code\github_personal",
-        @"E:\Code\github_personal",
+        @"D:\Code\github",
+        @"C:\Code\github",
+        @"E:\Code\github",
     };
 
     private readonly IConfigService _config;

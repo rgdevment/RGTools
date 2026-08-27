@@ -95,6 +95,50 @@ confirmándolo en la configuración del repo (manifest de paquetes, scripts, ent
 
 ---
 
+# Prompt B: declarar artefactos (repo que ya tiene `.rgtool.json`)
+
+Prompt **autónomo** para correr dentro de un repo que ya está estandarizado, cuando además genera
+archivos de salida (reportes, minutas, exports) que conviene poder abrir desde fuera. Solo añade/actualiza
+el campo `artifacts`; no toca el resto del manifiesto.
+
+````text
+# Declarar artefactos de salida en este proyecto (.rgtool.json)
+
+Estás dentro de un repositorio que ya tiene un manifiesto `.rgtool.json` en su raíz. Tu tarea es detectar
+los ARCHIVOS DE SALIDA que este proyecto genera para el usuario (reportes, minutas, exports, resultados,
+diagnósticos) y declararlos en el campo `artifacts` del manifiesto, para que una herramienta externa pueda
+listarlos y abrirlos. Trabaja solo con el código de este repositorio; verifica contra archivos reales, no
+inventes nombres ni rutas.
+
+## Pasos
+1. Busca en el código dónde el proyecto ESCRIBE archivos destinados al usuario (no logs internos de debug,
+   salvo que el log sea el producto). Pistas: open(...,'w'), Path.write_text, json.dump, to_csv, savefig,
+   y palabras como report, output, export, results, minuta, summary. Determina para cada salida:
+   - CARPETA: dentro del repo (ruta relativa a la raíz) o fuera (carpeta de datos del usuario, p. ej.
+     %LOCALAPPDATA%, Documentos, o una ruta configurable). Indica el default REAL.
+   - PATRÓN de nombre real, con extensión, confirmado contra los archivos que ya existan.
+   - Si hay TIPOS distintos de salida (datos vs diagnósticos vs documentos), trátalos como grupos separados.
+
+2. Añade (o actualiza) el campo `artifacts` en `.rgtool.json` — array, un objeto por grupo:
+   "artifacts": [
+     { "label": "<nombre legible>", "path": "<carpeta: relativa al repo o absoluta con %VARS%>",
+       "pattern": "<glob real; **/ para recursivo>", "limit": 0 }
+   ]
+   - `path`: relativa a la raíz del repo, o absoluta admitiendo variables de entorno (`%VAR%`).
+   - `pattern`: glob que matchee SOLO esos archivos (verifícalo contra nombres reales). `**/` = recursivo.
+   - `limit`: 0 = todos; un número N = solo los N más recientes por fecha.
+   - Si el proyecto no genera salidas relevantes para el usuario, deja `"artifacts": []` y dilo en el reporte.
+
+3. NO modifiques los demás campos del manifiesto. Mantén el JSON válido (cuida la coma antes de `artifacts`).
+
+## Entregable
+- El `.rgtool.json` actualizado solo con `artifacts`.
+- Para cada grupo: carpeta, patrón, y qué archivos reales matchean (cómo lo verificaste).
+- Salidas que decidiste NO incluir y por qué.
+````
+
+---
+
 ## Notas (lado RGTools, NO parte del prompt)
 
 Guía interna para dar de alta cada repo en el hub una vez estandarizado. El agente que corre el prompt

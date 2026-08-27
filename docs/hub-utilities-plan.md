@@ -7,12 +7,12 @@ DNS Guardian, VPN FortiClient y túnel DB (Jumpbox), todo bajo el patrón
 snapshot→aplicar→restaurar. Hay más utilidades dispersas que conviene centralizar, **cada una
 con requisitos y lenguaje propios**:
 
-- **Netmon** (`D:\Code\github_personal\Netmon`): monitor de red Python 3.11, TUI Rich, maduro (v9).
+- **Netmon** (`D:\Code\github\Netmon`): monitor de red Python 3.11, TUI Rich, maduro (v9).
   Deps con compilación nativa (`aioquic` QUIC, `psutil`). Ya tiene PyInstaller (`netmon.spec`).
-- **meet-copilot** (`D:\Code\github_personal\meet-copilot`): agente de reuniones Teams, GUI Python
+- **meet-copilot** (`D:\Code\github\meet-copilot`): agente de reuniones Teams, GUI Python
   (CustomTkinter), beta v2. Usa LLMs (OpenAI/Anthropic/Gemini/LM Studio) + secretos en config propio
   + `uiautomation` (frágil a cambios de Teams). No empaqueta.
-- **videomerge** (`D:\Code\github_personal\videomerge`): CLI Python 3.10 (Rich), deps livianas pero
+- **videomerge** (`D:\Code\github\videomerge`): CLI Python 3.10 (Rich), deps livianas pero
   **depende de ffmpeg/ffprobe externos versión-crítico** (SVT-AV1 ≥ 2.1.0). Ya tiene un instalador
   idempotente (`scripts\install-windows.ps1`: winget + verificación de versiones). Empaquetar a `.exe`
   sería > 500 MB e inviable.
@@ -44,9 +44,9 @@ El hub no guarda rutas absolutas por herramienta. **Descubre por convención**: 
 una lista de raíces conocidas, en orden:
 
 ```
-D:\Code\github_personal\<repo>   ← default (donde clona)
-C:\Code\github_personal\<repo>
-E:\Code\github_personal\<repo>
+D:\Code\github\<repo>   ← default (donde clona)
+C:\Code\github\<repo>
+E:\Code\github\<repo>
 ```
 
 Las raíces son configurables (`AppSettings.ToolRoots`, default la lista de arriba). El descubrimiento:
@@ -54,7 +54,7 @@ Las raíces son configurables (`AppSettings.ToolRoots`, default la lista de arri
 ```
 Discover(<repo>)
   ├─ encontrado en una raíz → continúa a Detect
-  └─ no clonado en ninguna  → tile "Clonar" → git clone <repoUrl> en D:\Code\github_personal → Ensure
+  └─ no clonado en ninguna  → tile "Clonar" → git clone <repoUrl> en D:\Code\github → Ensure
 ```
 
 Por eso el índice central (`tools.json`) solo necesita lo mínimo para **encontrar o clonar** el repo —
@@ -218,7 +218,7 @@ vive en el repo de la herramienta.
 - **`tools.json`** (no dentro de `AppSettings`): índice editable de herramientas conocidas con lo mínimo
   para **encontrarlas o clonarlas** — `id`, `repoUrl`, carpeta, categoría. Plantilla bundled
   `tools.default.json` (`EmbeddedResource`) + copia en `%APPDATA%\RGTools\tools.json` (merge). En
-  `AppSettings`: `ToolRoots` (lista de raíces de búsqueda, default `D:\Code\github_personal` + C/E) y
+  `AppSettings`: `ToolRoots` (lista de raíces de búsqueda, default `D:\Code\github` + C/E) y
   `Dictionary<string,string> ToolPaths` (override de ruta por id para casos no convencionales, generaliza
   `JumboxFolderPath`). **Source-gen dedicado `ToolsJsonContext`** — no contaminar `AppJsonContext`.
 - **El detalle de provisión/preflight/launch NO está en `tools.json`**: vive en el `.rgtool.json` de
@@ -255,7 +255,7 @@ los fallos muestran código + cola de la salida + ruta del log. **Artefactos**: 
 por defecto (`ToolArtifactService`: `path` relativa al repo o absoluta con `%VAR%`, glob `**/` recursivo,
 `limit` por recencia). 54 tests verdes. **Scripts de debloat: DESCARTADOS** (casos borde, fuera del hub).
 `AppSettings.ToolRoots`
-opcional (default D/C/E); el clone cae en la primera root (`D:\Code\github_personal`).
+opcional (default D/C/E); el clone cae en la primera root (`D:\Code\github`).
 
 Comportamiento por herramienta (por su manifiesto): **videomerge** autovalente (`uv run` auto-sincroniza →
 salta Preparar); **netmon** usa `uv run --no-sync` → requiere Preparar explícito (`uv sync --inexact`);

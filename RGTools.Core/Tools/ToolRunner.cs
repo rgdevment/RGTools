@@ -45,14 +45,31 @@ public sealed class ToolRunner : IToolRunner
 
     public bool Launch(string commandLine, string workingDirectory)
     {
+        // Windows Terminal first: UTF-8 + full-glyph font so Rich/TUI output (sparklines, box-drawing)
+        // renders correctly. A legacy cmd/conhost console lacks those glyphs and shows mojibake/□.
+        // TODO(security): child inherits the host's admin token; de-elevate before promoting beyond pilot.
         try
         {
-            // Visible console so interactive CLI/TUI tools (Rich menus) are usable.
-            // TODO(security): child inherits the host's admin token; de-elevate before promoting beyond pilot.
+            var wt = Process.Start(new ProcessStartInfo
+            {
+                FileName = "wt.exe",
+                Arguments = $"-d \"{workingDirectory}\" cmd /k {commandLine}",
+                UseShellExecute = true,
+                CreateNoWindow = false
+            });
+            if (wt != null) return true;
+        }
+        catch (Exception ex)
+        {
+            LogService.Log($"[TOOL] Windows Terminal unavailable, falling back to cmd: {ex.Message}");
+        }
+
+        try
+        {
             var process = Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c {commandLine}",
+                Arguments = $"/k chcp 65001>nul & set \"PYTHONUTF8=1\" & {commandLine}",
                 WorkingDirectory = workingDirectory,
                 UseShellExecute = true,
                 CreateNoWindow = false

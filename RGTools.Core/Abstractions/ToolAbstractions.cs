@@ -21,6 +21,7 @@ public interface IToolProvisioner
     Task<ProvisionState> DetectAsync(ToolDescriptor tool, CancellationToken ct = default);
     Task<ToolRunResult> AcquireAsync(ToolDescriptor tool, CancellationToken ct = default);
     Task<ToolRunResult> EnsureAsync(ToolDescriptor tool, CancellationToken ct = default);
+    Task<ToolUpdateResult> UpdateAsync(ToolDescriptor tool, CancellationToken ct = default);
 }
 
 public interface IToolLauncher
