@@ -12,11 +12,12 @@ public sealed class GpuPriorityService : IGpuPriorityService
 
     public async Task ApplyAsync()
     {
-        if (_store.Exists(StateKeys.Gpu)) return;
-
         try
         {
-            await _store.SaveAsync(StateKeys.Gpu, ReadSnapshot()).ConfigureAwait(false);
+            // Snapshot once, write always, so reapplying the profile repairs the keys without
+            // recording the tweaked values over the originals.
+            if (!_store.Exists(StateKeys.Gpu))
+                await _store.SaveAsync(StateKeys.Gpu, ReadSnapshot()).ConfigureAwait(false);
 
             using var key = Registry.LocalMachine.CreateSubKey(GamesTasksPath, writable: true);
             if (key == null) return;

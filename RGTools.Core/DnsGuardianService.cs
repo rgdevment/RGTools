@@ -19,6 +19,13 @@ public class DnsGuardianService : IDnsGuardianService
     private readonly Lock _stateLock = new();
     private bool _disposed;
 
+    // Last reported observation. The WMI watcher polls every 2s and the machine carries a dozen
+    // virtual adapters, so logging every check buries everything else; only transitions are written.
+    // Guarded by _lock, which serialises CheckAndRestoreDnsAsync.
+    private string? _reportedDns;
+    private string? _reportedInterface;
+    private bool _reportedNoInterface;
+
     public bool IsRunning
     {
         get { lock (_stateLock) return _cts != null; }
@@ -30,8 +37,6 @@ public class DnsGuardianService : IDnsGuardianService
     {
         try
         {
-            LogService.Log("[Guardian] Start() called.");
-
             CancellationToken token;
             lock (_stateLock)
             {
@@ -45,14 +50,12 @@ public class DnsGuardianService : IDnsGuardianService
                 _cts = new CancellationTokenSource();
                 token = _cts.Token;
             }
-            LogService.Log("[Guardian] CancellationTokenSource created.");
 
             StartWmiListener();
-            LogService.Log("[Guardian] Starting background loop task...");
             Task.Run(() => LoopAsync(token));
 
             RaiseStatusChanged(true);
-            LogService.Log("[Guardian] Service Started successfully.");
+            LogService.Log($"[Guardian] Started (target {TargetDns}, check every {CheckIntervalMinutes} min).");
         }
         catch (Exception ex)
         {
@@ -101,7 +104,6 @@ public class DnsGuardianService : IDnsGuardianService
     {
         try
         {
-            LogService.Log("[Guardian] Creating WMI query for network changes...");
             var query = new WqlEventQuery("__InstanceModificationEvent",
                 TimeSpan.FromSeconds(2),
                 "TargetInstance ISA 'Win32_NetworkAdapterConfiguration'");
@@ -111,7 +113,6 @@ public class DnsGuardianService : IDnsGuardianService
             {
                 try
                 {
-                    LogService.Log("[Guardian] WMI network change event detected.");
                     await Task.Delay(2000).ConfigureAwait(false);
                     await CheckAndRestoreDnsAsync("WmiEvent").ConfigureAwait(false);
                 }
@@ -121,7 +122,6 @@ public class DnsGuardianService : IDnsGuardianService
                 }
             };
             _networkWatcher.Start();
-            LogService.Log("[Guardian] WMI listener started successfully.");
         }
         catch (Exception ex)
         {
@@ -133,18 +133,12 @@ public class DnsGuardianService : IDnsGuardianService
     {
         try
         {
-            LogService.Log("[Guardian] Loop started, performing startup DNS check...");
             await CheckAndRestoreDnsAsync("Startup").ConfigureAwait(false);
 
-            LogService.Log($"[Guardian] Creating timer for {CheckIntervalMinutes} minute intervals...");
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(CheckIntervalMinutes));
-            LogService.Log("[Guardian] Entering main monitoring loop.");
 
             while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
-            {
-                LogService.Log("[Guardian] Timer tick - running scheduled DNS check.");
                 await CheckAndRestoreDnsAsync("Timer").ConfigureAwait(false);
-            }
         }
         catch (OperationCanceledException)
         {
@@ -161,15 +155,9 @@ public class DnsGuardianService : IDnsGuardianService
     {
         if (_disposed) return;
 
-        LogService.Log($"[Guardian] ({source}) Check initiated.");
-
         try
         {
-            if (!await _lock.WaitAsync(0).ConfigureAwait(false))
-            {
-                LogService.Log($"[Guardian] ({source}) Lock busy, skipping check.");
-                return;
-            }
+            if (!await _lock.WaitAsync(0).ConfigureAwait(false)) return;
         }
         catch (ObjectDisposedException)
         {
@@ -181,28 +169,39 @@ public class DnsGuardianService : IDnsGuardianService
             var nic = GetPhysicalInterface();
             if (nic == null)
             {
-                LogService.Log($"[Guardian] ({source}) No active physical interface found.");
+                if (!_reportedNoInterface)
+                {
+                    LogService.Log($"[Guardian] ({source}) No active physical interface found.");
+                    _reportedNoInterface = true;
+                    _reportedDns = null;
+                    _reportedInterface = null;
+                }
                 return;
             }
 
-            LogService.Log($"[Guardian] ({source}) Checking interface: {nic.Name} [{nic.Description}]");
-            var ipProps = nic.GetIPProperties();
-            var dnsAddresses = ipProps.DnsAddresses
+            _reportedNoInterface = false;
+
+            var currentDns = nic.GetIPProperties().DnsAddresses
                 .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
                 .Select(ip => ip.ToString())
-                .ToList();
-
-            var currentDns = dnsAddresses.FirstOrDefault() ?? "None";
-            LogService.Log($"[Guardian] ({source}) Current DNS: {currentDns}, Expected: {TargetDns}");
+                .FirstOrDefault() ?? "None";
 
             if (currentDns != TargetDns)
             {
-                LogService.Log($"[Guardian] ({source}) HIJACK DETECTED! Restoring {TargetDns}...");
+                LogService.Log($"[Guardian] ({source}) HIJACK on {nic.Name}: {currentDns}, expected {TargetDns}. Restoring...");
                 await RestoreDnsIpAsync(nic.Name).ConfigureAwait(false);
+
+                // Cleared so the next check reports the recovered state instead of staying silent.
+                _reportedDns = null;
+                _reportedInterface = nic.Name;
+                return;
             }
-            else
+
+            if (currentDns != _reportedDns || nic.Name != _reportedInterface)
             {
-                LogService.Log($"[Guardian] ({source}) DNS is correct.");
+                LogService.Log($"[Guardian] ({source}) DNS correct on {nic.Name}: {currentDns}.");
+                _reportedDns = currentDns;
+                _reportedInterface = nic.Name;
             }
         }
         catch (Exception ex)
@@ -261,34 +260,13 @@ public class DnsGuardianService : IDnsGuardianService
     {
         try
         {
-            var allInterfaces = NetworkInterface.GetAllNetworkInterfaces();
-            LogService.Log($"[Guardian] Found {allInterfaces.Length} total network interfaces.");
-
-            var selected = allInterfaces
+            return NetworkInterface.GetAllNetworkInterfaces()
                 .Where(ni =>
-                {
-                    var isUp = ni.OperationalStatus == OperationalStatus.Up;
-                    var isPhysical = ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
-                                     ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
-                    var hasGateway = ni.GetIPProperties().GatewayAddresses.Count > 0;
-                    var notLoopback = ni.NetworkInterfaceType != NetworkInterfaceType.Loopback;
-
-                    if (isUp && isPhysical)
-                    {
-                        LogService.Log($"[Guardian]   -> {ni.Name} | Type: {ni.NetworkInterfaceType} | Gateway: {hasGateway}");
-                    }
-
-                    return isUp && isPhysical && hasGateway && notLoopback;
-                })
+                    ni.OperationalStatus == OperationalStatus.Up
+                    && ni.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211
+                    && ni.GetIPProperties().GatewayAddresses.Count > 0)
                 .OrderByDescending(ni => ni.Speed)
                 .FirstOrDefault();
-
-            if (selected != null)
-            {
-                LogService.Log($"[Guardian] Selected: {selected.Name} (Speed: {selected.Speed} bps)");
-            }
-
-            return selected;
         }
         catch (Exception ex)
         {
@@ -301,9 +279,6 @@ public class DnsGuardianService : IDnsGuardianService
     {
         try
         {
-            var truncatedArgs = args.Length > 100 ? args.Substring(0, 100) + "..." : args;
-            LogService.Log($"[Guardian] Executing: {fileName} {truncatedArgs}");
-
             ProcessStartInfo psi = new(fileName, args)
             {
                 CreateNoWindow = true,
@@ -321,12 +296,8 @@ public class DnsGuardianService : IDnsGuardianService
                 string stderr = await stderrTask.ConfigureAwait(false);
                 await stdoutTask.ConfigureAwait(false);
 
-                LogService.Log($"[Guardian] Process exited: code {p.ExitCode}");
-
-                if (p.ExitCode != 0 && !string.IsNullOrWhiteSpace(stderr))
-                {
-                    LogService.Log($"[Guardian] Process error output: {stderr}");
-                }
+                if (p.ExitCode != 0)
+                    LogService.Log($"[Guardian] {fileName} exited {p.ExitCode}. {stderr}".TrimEnd());
             }
         }
         catch (Exception ex)

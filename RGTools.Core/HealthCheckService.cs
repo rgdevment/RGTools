@@ -9,14 +9,14 @@ public sealed class HealthCheckService : BackgroundService
     private const long MinFreeDiskGb = 10;
 
     private readonly IDnsGuardianService _dns;
-    private readonly IModeManager _modeManager;
+    private readonly IProfileEngine _profiles;
 
     public event Action<string>? StatusChanged;
 
-    public HealthCheckService(IDnsGuardianService dns, IModeManager modeManager)
+    public HealthCheckService(IDnsGuardianService dns, IProfileEngine profiles)
     {
         _dns = dns;
-        _modeManager = modeManager;
+        _profiles = profiles;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,8 +47,13 @@ public sealed class HealthCheckService : BackgroundService
             bool diskOk = freeGb < 0 || freeGb >= MinFreeDiskGb;
             bool netOk = await IsInternetReachableAsync(token).ConfigureAwait(false);
 
+            // Reconciles the declared profile against what Windows actually reports. Not corrected
+            // automatically: that would fight the user changing the power mode on purpose.
+            var profile = ProfileCatalog.For(_profiles.Active);
+            var drift = _profiles.IsApplying ? null : _profiles.Inspect();
+
             string tooltip =
-                $"RGTools — {_modeManager.Active}\n" +
+                $"RGTools — {profile.DisplayName}{(drift?.HasDrift == true ? " (desincronizado)" : "")}\n" +
                 $"DNS: {(dnsOk ? "OK" : "off")}\n" +
                 $"Disco C: {(freeGb < 0 ? "N/D" : freeGb + " GB")}\n" +
                 $"Red: {(netOk ? "OK" : "sin conexión")}";

@@ -152,9 +152,25 @@
                 <Separator Background="#222" Margin="0,15,0,18" Height="1" BorderThickness="0"/>
 
                 <TextBlock Text="PERFILES" Foreground="{StaticResource TextMuted}" FontSize="9" FontWeight="Bold" Margin="0,0,0,12"/>
-                <Button x:Name="BtnWork" Content="💼 Trabajo" Tag="Work" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
-                <Button x:Name="BtnGaming" Content="🎮 Gaming" Tag="Gaming" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
-                <Button x:Name="BtnBoost" Content="⚡ Boost (CPU máx.)" Tag="Boost" Style="{StaticResource ModeButton}" Click="BtnMode_Click"/>
+                <Button x:Name="BtnBalanced" Content="⚖️ Equilibrado" Tag="Balanced" Style="{StaticResource ModeButton}" Click="BtnProfile_Click"/>
+                <Button x:Name="BtnWork" Content="💼 Trabajo" Tag="Work" Style="{StaticResource ModeButton}" Click="BtnProfile_Click"/>
+                <Button x:Name="BtnGaming" Content="🎮 Juego" Tag="Gaming" Style="{StaticResource ModeButton}" Click="BtnProfile_Click"/>
+
+                <TextBlock x:Name="TxtProfileDrift"
+                           Text="⚠ Desincronizado — pulsa el perfil para reaplicarlo"
+                           Foreground="#E0A030"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Margin="5,4,0,0"
+                           Visibility="Collapsed"/>
+
+                <CheckBox x:Name="ChkGpuPriority"
+                          Content="GPU Priority en Juego"
+                          Style="{StaticResource ModernToggle}"
+                          Margin="0,12,0,0"
+                          Click="ChkGpuPriority_Click"
+                          Foreground="White"
+                          FontSize="12"/>
 
                 <Separator Background="#222" Margin="0,18,0,18" Height="1" BorderThickness="0"/>
 

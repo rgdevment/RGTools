@@ -1,40 +1,50 @@
-using System.Diagnostics;
-
 namespace RGTools.App.Core;
 
 public sealed class WorkloadGuardService : IWorkloadGuard
 {
     private const string DockerService = "com.docker.service";
 
-    private static readonly string[] ProcessesToClose =
+    // Noisy on CPU but cheap to keep resident: EcoQoS parks them without costing you the session.
+    private static readonly string[] Throttled =
+    {
+        "Slack",
+        "Discord",
+        "WhatsApp",
+        "Spark Desktop",
+        "SearchIndexer"
+    };
+
+    // Closed instead of throttled: EcoQoS does not hand back the RAM and GPU memory these hold.
+    private static readonly string[] ToClose =
     {
         "Docker Desktop",
         "com.docker",
         "LM Studio",
-        "Slack",
-        "Discord",
-        "Spark Desktop",
-        "WhatsApp",
         "qbittorrent"
     };
 
     private readonly IProcessRunner _runner;
+    private readonly IProcessThrottler _throttler;
 
-    public WorkloadGuardService(IProcessRunner runner) => _runner = runner;
+    public WorkloadGuardService(IProcessRunner runner, IProcessThrottler throttler)
+    {
+        _runner = runner;
+        _throttler = throttler;
+    }
 
     public async Task<WorkloadSnapshot> CaptureAsync(CancellationToken ct = default) => new()
     {
-        WSearchWasRunning = await IsServiceRunningAsync("WSearch", ct).ConfigureAwait(false),
         DockerServiceWasRunning = await IsServiceRunningAsync(DockerService, ct).ConfigureAwait(false)
     };
 
     public async Task SuspendAsync(CancellationToken ct = default)
     {
+        Throttle(enabled: true);
+
         // Escape single quotes so a process name can't break out of the PowerShell string literal.
-        string nameList = string.Join(",", ProcessesToClose.Select(n => $"'{n.Replace("'", "''")}*'"));
+        string nameList = string.Join(",", ToClose.Select(n => $"'{n.Replace("'", "''")}*'"));
 
         await _runner.RunPowerShellAsync(
-            "Stop-Service -Name 'WSearch' -Force -ErrorAction SilentlyContinue; " +
             $"Stop-Service -Name '{DockerService}' -Force -ErrorAction SilentlyContinue; " +
             $"$p = Get-Process {nameList} -ErrorAction SilentlyContinue; " +
             "$p | ForEach-Object { $_.CloseMainWindow() | Out-Null }; " +
@@ -42,18 +52,24 @@ public sealed class WorkloadGuardService : IWorkloadGuard
             $"Get-Process {nameList} -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; " +
             "wsl --shutdown", ct).ConfigureAwait(false);
 
-        LogService.Log($"[WORKLOAD] Suspended (graceful-then-force: {string.Join(", ", ProcessesToClose)}, WSL2)");
+        LogService.Log($"[WORKLOAD] Closed: {string.Join(", ", ToClose)}, WSL2.");
     }
 
-    public async Task RestoreAsync(WorkloadSnapshot snapshot, CancellationToken ct = default)
+    public async Task RestoreAsync(WorkloadSnapshot? snapshot, CancellationToken ct = default)
     {
-        if (snapshot.WSearchWasRunning)
-            await _runner.RunPowerShellAsync("Start-Service -Name 'WSearch' -ErrorAction SilentlyContinue", ct).ConfigureAwait(false);
+        Throttle(enabled: false);
 
-        if (snapshot.DockerServiceWasRunning)
-            await _runner.RunPowerShellAsync($"Start-Service -Name '{DockerService}' -ErrorAction SilentlyContinue", ct).ConfigureAwait(false);
+        if (snapshot?.DockerServiceWasRunning == true)
+            await _runner.RunPowerShellAsync(
+                $"Start-Service -Name '{DockerService}' -ErrorAction SilentlyContinue", ct).ConfigureAwait(false);
 
-        LogService.Log("[WORKLOAD] Restored WSearch/Docker service. Closed apps (incl. Docker Desktop) must be reopened manually.");
+        LogService.Log("[WORKLOAD] Efficiency mode lifted. Closed apps must be reopened manually.");
+    }
+
+    private void Throttle(bool enabled)
+    {
+        foreach (var name in Throttled)
+            _throttler.SetEfficiency(name, enabled);
     }
 
     private async Task<bool> IsServiceRunningAsync(string service, CancellationToken ct)

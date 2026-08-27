@@ -25,6 +25,10 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+        // OnExit does not always run when Windows shuts down; without this the run marker survives
+        // and the next launch reads it as a crash.
+        SessionEnding += OnSessionEnding;
+
         LogService.Initialize();
         LogService.Log("[SYSTEM] Application starting...");
         LogService.Log("[SYSTEM] Context confirmed: Administrator privileges granted via Manifest.");
@@ -48,7 +52,9 @@ public partial class App : Application
                 LogService.Log("[CONFIG] DNS Guardian is disabled in config.");
             }
 
-            await _host.Services.GetRequiredService<IModeManager>().RestoreSessionAsync();
+            await MigratePowerPlansAsync(config);
+
+            await _host.Services.GetRequiredService<IProfileEngine>().RestoreSessionAsync();
 
             await _host.Services.GetRequiredService<IToolRegistry>().ReloadAsync();
 
@@ -78,16 +84,13 @@ public partial class App : Application
         services.AddSingleton<IVpnService, VpnService>();
         services.AddSingleton<IJumpboxService, JumpboxService>();
 
-        services.AddSingleton<IPowerPlanService, PowerPlanService>();
+        services.AddSingleton<IPowerOverlayService, PowerOverlayService>();
         services.AddSingleton<IGpuPriorityService, GpuPriorityService>();
-        services.AddSingleton<IDisplayRefreshService, DisplayRefreshService>();
         services.AddSingleton<IGamingTweaksService, GamingTweaksService>();
+        services.AddSingleton<IProcessThrottler, ProcessThrottler>();
         services.AddSingleton<IWorkloadGuard, WorkloadGuardService>();
         services.AddSingleton<INotificationSilencer, NotificationSilencerService>();
-        services.AddSingleton<IMode, WorkModeService>();
-        services.AddSingleton<IMode, GamingModeService>();
-        services.AddSingleton<IMode, BoostModeService>();
-        services.AddSingleton<IModeManager, ModeManager>();
+        services.AddSingleton<IProfileEngine, ProfileEngine>();
 
         services.AddSingleton<IToolRunner, ToolRunner>();
         services.AddSingleton<IToolRegistry, ToolRegistryService>();
@@ -102,6 +105,31 @@ public partial class App : Application
         services.AddTransient<DashboardView>();
 
         return builder.Build();
+    }
+
+    // One-shot cleanup of the custom power plans earlier versions created: they hide the Power mode
+    // selector in Windows Settings, and the overlay overrides them anyway.
+    private async Task MigratePowerPlansAsync(IConfigService config)
+    {
+        if (config.Current.PowerMigrationDone) return;
+
+        try
+        {
+            await _host!.Services.GetRequiredService<IPowerOverlayService>().MigrateToBaselineAsync();
+            await config.UpdateAsync(s => s with { PowerMigrationDone = true });
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("[POWER] Plan migration failed; will retry on next launch", ex);
+        }
+    }
+
+    private void OnSessionEnding(object sender, SessionEndingCancelEventArgs e)
+    {
+        LogService.Log($"[APP] Windows session ending ({e.ReasonSessionEnding}).");
+
+        try { _host?.Services.GetService<IProfileEngine>()?.MarkCleanShutdown(); }
+        catch (Exception ex) { LogService.Log("[APP] Mark clean shutdown on session end failed", ex); }
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -218,7 +246,7 @@ public partial class App : Application
         {
             try
             {
-                _host.Services.GetService<IModeManager>()?.MarkCleanShutdown();
+                _host.Services.GetService<IProfileEngine>()?.MarkCleanShutdown();
                 LogService.Log("[APP] Clean shutdown marked (profile persists).");
             }
             catch (Exception ex)

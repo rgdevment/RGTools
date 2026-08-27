@@ -2,8 +2,6 @@ namespace RGTools.App.Core;
 
 public record WorkloadSnapshot
 {
-    public bool WSearchWasRunning { get; init; }
-
     public bool DockerServiceWasRunning { get; init; }
 }
 
@@ -13,5 +11,5 @@ public interface IWorkloadGuard
 
     Task SuspendAsync(CancellationToken ct = default);
 
-    Task RestoreAsync(WorkloadSnapshot snapshot, CancellationToken ct = default);
+    Task RestoreAsync(WorkloadSnapshot? snapshot, CancellationToken ct = default);
 }

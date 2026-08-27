@@ -14,11 +14,14 @@ public partial class DashboardView : Window
     private readonly IVpnService _vpnService;
     private readonly IJumpboxService _jumpboxService;
     private readonly IStartupService _startup;
-    private readonly IModeManager _modeManager;
+    private readonly IProfileEngine _profiles;
+    private readonly IUserConsentService _consent;
     private readonly IToolRegistry _tools;
     private readonly IToolProvisioner _provisioner;
     private readonly IToolLauncher _launcher;
     private readonly IToolArtifacts _artifacts;
+
+    private const string GpuConsentId = "gaming.gpu-priority";
 
     private readonly Dictionary<string, Button> _toolButtons = new();
     private readonly Dictionary<string, Button> _artifactButtons = new();
@@ -30,7 +33,8 @@ public partial class DashboardView : Window
         IVpnService vpnService,
         IJumpboxService jumpboxService,
         IStartupService startup,
-        IModeManager modeManager,
+        IProfileEngine profiles,
+        IUserConsentService consent,
         IToolRegistry tools,
         IToolProvisioner provisioner,
         IToolLauncher launcher,
@@ -46,7 +50,8 @@ public partial class DashboardView : Window
             _vpnService = vpnService;
             _jumpboxService = jumpboxService;
             _startup = startup;
-            _modeManager = modeManager;
+            _profiles = profiles;
+            _consent = consent;
             _tools = tools;
             _provisioner = provisioner;
             _launcher = launcher;
@@ -57,9 +62,11 @@ public partial class DashboardView : Window
 
             _vpnService.StatusChanged += OnVpnStatusChanged;
             _vpnService.ConnectionChanged += OnVpnConnectionChanged;
-            _modeManager.ModeChanged += OnModeChanged;
+            _profiles.ProfileChanged += OnProfileChanged;
+            _profiles.DriftDetected += OnDriftDetected;
 
-            UpdateModeUi(_modeManager.Active);
+            ChkGpuPriority.IsChecked = _consent.IsGranted(GpuConsentId);
+            UpdateProfileUi(_profiles.Active);
             UpdateVpnUi(_vpnService.IsActive);
             Loaded += OnDashboardLoaded;
             LogService.Log("[UI] DashboardView initialized successfully.");
@@ -274,52 +281,77 @@ public partial class DashboardView : Window
         }
     }
 
-    private async void BtnMode_Click(object sender, RoutedEventArgs e)
+    private async void BtnProfile_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not string tag) return;
         if (!Enum.TryParse<ProfileKind>(tag, out var kind)) return;
 
-        LogService.Log($"[UI-MODE] Switch requested: {kind}");
-        SetModeButtonsEnabled(false);
+        LogService.Log($"[UI-PROFILE] Apply requested: {kind}");
+        SetProfileButtonsEnabled(false);
         try
         {
-            await _modeManager.SwitchToAsync(kind);
+            await _profiles.ApplyAsync(kind);
         }
         catch (Exception ex)
         {
-            LogService.Log("[UI-MODE] Switch failed", ex);
-            MessageBox.Show($"No se pudo cambiar al perfil {kind}.");
+            LogService.Log("[UI-PROFILE] Apply failed", ex);
+            MessageBox.Show($"No se pudo aplicar el perfil {ProfileCatalog.For(kind).DisplayName}.");
         }
         finally
         {
-            SetModeButtonsEnabled(true);
-            UpdateModeUi(_modeManager.Active);
+            SetProfileButtonsEnabled(true);
+            UpdateProfileUi(_profiles.Active);
         }
     }
 
-    private void OnModeChanged(ProfileKind active)
+    private async void ChkGpuPriority_Click(object sender, RoutedEventArgs e)
     {
-        Dispatcher.BeginInvoke(() => UpdateModeUi(active));
+        bool granted = ChkGpuPriority.IsChecked ?? false;
+        LogService.Log($"[UI-PROFILE] GPU Priority consent set to {granted}");
+
+        await _config.UpdateAsync(s => s with
+        {
+            Consent = new ConsentSettings
+            {
+                Granted = new Dictionary<string, bool>(s.Consent.Granted) { [GpuConsentId] = granted }
+            }
+        });
+
+        if (_profiles.Active == ProfileKind.Gaming)
+            await _profiles.ApplyAsync(ProfileKind.Gaming);
     }
 
-    private void UpdateModeUi(ProfileKind active)
+    private void OnProfileChanged(ProfileKind active)
     {
-        SetModeButton(BtnWork, active == ProfileKind.Work);
-        SetModeButton(BtnGaming, active == ProfileKind.Gaming);
-        SetModeButton(BtnBoost, active == ProfileKind.Boost);
+        Dispatcher.BeginInvoke(() => UpdateProfileUi(active));
     }
 
-    private void SetModeButton(Button btn, bool isActive)
+    private void OnDriftDetected(ProfileDrift drift)
+    {
+        Dispatcher.BeginInvoke(() => TxtProfileDrift.Visibility = Visibility.Visible);
+    }
+
+    private void UpdateProfileUi(ProfileKind active)
+    {
+        SetProfileButton(BtnBalanced, active == ProfileKind.Balanced);
+        SetProfileButton(BtnWork, active == ProfileKind.Work);
+        SetProfileButton(BtnGaming, active == ProfileKind.Gaming);
+
+        TxtProfileDrift.Visibility = Visibility.Collapsed;
+    }
+
+    private void SetProfileButton(Button btn, bool isActive)
     {
         btn.Foreground = isActive ? (Brush)FindResource("Accent") : (Brush)FindResource("TextMain");
         btn.FontWeight = isActive ? FontWeights.Bold : FontWeights.Normal;
     }
 
-    private void SetModeButtonsEnabled(bool enabled)
+    // The active profile stays clickable: reapplying it is how drift gets repaired.
+    private void SetProfileButtonsEnabled(bool enabled)
     {
+        BtnBalanced.IsEnabled = enabled;
         BtnWork.IsEnabled = enabled;
         BtnGaming.IsEnabled = enabled;
-        BtnBoost.IsEnabled = enabled;
     }
 
     private void BuildToolTiles()
@@ -531,7 +563,8 @@ public partial class DashboardView : Window
     {
         _vpnService.StatusChanged -= OnVpnStatusChanged;
         _vpnService.ConnectionChanged -= OnVpnConnectionChanged;
-        _modeManager.ModeChanged -= OnModeChanged;
+        _profiles.ProfileChanged -= OnProfileChanged;
+        _profiles.DriftDetected -= OnDriftDetected;
         base.OnClosed(e);
     }
 

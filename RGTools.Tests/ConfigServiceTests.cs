@@ -60,7 +60,29 @@ public class ConfigServiceTests : IDisposable
         await svc.LoadAsync();
 
         Assert.True(svc.Current.DnsGuardianEnabled);
-        Assert.Equal(ProfileKind.Work, svc.Current.ActiveProfile);
+        Assert.Equal(ProfileKind.Balanced, svc.Current.ActiveProfile);
+    }
+
+    [Fact]
+    public async Task Load_WithRetiredProfile_FallsBackWithoutLosingOtherSettings()
+    {
+        Directory.CreateDirectory(_tempDir);
+        await File.WriteAllTextAsync(_configFile, """
+            {
+              "dnsGuardianEnabled": false,
+              "startWithWindows": true,
+              "activeProfile": "Boost",
+              "jumboxFolderPath": "/home/test/jumbox"
+            }
+            """);
+
+        var svc = new ConfigService(_configFile);
+        await svc.LoadAsync();
+
+        Assert.Equal(ProfileKind.Balanced, svc.Current.ActiveProfile);
+        Assert.False(svc.Current.DnsGuardianEnabled);
+        Assert.True(svc.Current.StartWithWindows);
+        Assert.Equal("/home/test/jumbox", svc.Current.JumboxFolderPath);
     }
 
     [Fact]

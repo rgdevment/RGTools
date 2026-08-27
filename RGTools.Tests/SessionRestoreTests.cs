@@ -6,20 +6,30 @@ namespace RGTools.Tests;
 
 public class SessionRestoreTests
 {
-    private static IMode FakeMode(ProfileKind kind)
+    private static ProfileEngine Build(
+        ProfileKind stored,
+        IPowerOverlayService overlay,
+        ISystemStateStore store,
+        IConfigService? config = null)
     {
-        var mode = Substitute.For<IMode>();
-        mode.Kind.Returns(kind);
-        mode.ActivateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        mode.DeactivateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        return mode;
+        config ??= FakeConfig(stored);
+
+        return new ProfileEngine(
+            overlay,
+            Substitute.For<IWorkloadGuard>(),
+            Substitute.For<IGamingTweaksService>(),
+            Substitute.For<INotificationSilencer>(),
+            Substitute.For<IGpuPriorityService>(),
+            Substitute.For<IUserConsentService>(),
+            config,
+            store,
+            Substitute.For<INotificationService>());
     }
 
     private static IConfigService FakeConfig(ProfileKind initial)
     {
         var config = Substitute.For<IConfigService>();
         config.Current.Returns(new AppSettings { ActiveProfile = initial });
-        config.SaveAsync(Arg.Any<AppSettings>()).Returns(Task.CompletedTask);
         config.UpdateAsync(Arg.Any<Func<AppSettings, AppSettings>>()).Returns(Task.CompletedTask);
         return config;
     }
@@ -34,65 +44,53 @@ public class SessionRestoreTests
     }
 
     [Fact]
-    public async Task RestoreSession_CleanShutdown_KeepsGamingProfile()
+    public async Task CleanShutdown_ReappliesTheStoredProfile()
     {
-        var work = FakeMode(ProfileKind.Work);
-        var gaming = FakeMode(ProfileKind.Gaming);
-        // No RunMarker => previous session exited cleanly.
-        var mgr = new ModeManager(new[] { work, gaming }, FakeConfig(ProfileKind.Gaming), FakeStore());
+        var overlay = Substitute.For<IPowerOverlayService>();
+        var engine = Build(ProfileKind.Gaming, overlay, FakeStore());
 
-        await mgr.RestoreSessionAsync();
+        await engine.RestoreSessionAsync();
 
-        Assert.Equal(ProfileKind.Gaming, mgr.Active);
-        await work.DidNotReceive().ActivateAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(ProfileKind.Gaming, engine.Active);
+        await overlay.Received(1).ApplyAsync(PowerOverlay.BestPerformance);
     }
 
     [Fact]
-    public async Task RestoreSession_AfterCrash_SanitizesToWork()
+    public async Task AfterCrash_ResetsToBalanced()
     {
-        var work = FakeMode(ProfileKind.Work);
-        var gaming = FakeMode(ProfileKind.Gaming);
-        // RunMarker present => previous session crashed.
-        var mgr = new ModeManager(new[] { work, gaming }, FakeConfig(ProfileKind.Gaming), FakeStore(StateKeys.RunMarker));
+        var overlay = Substitute.For<IPowerOverlayService>();
+        var engine = Build(ProfileKind.Gaming, overlay, FakeStore(StateKeys.RunMarker));
 
-        await mgr.RestoreSessionAsync();
+        await engine.RestoreSessionAsync();
 
-        Assert.Equal(ProfileKind.Work, mgr.Active);
-        await work.Received(1).ActivateAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(ProfileKind.Balanced, engine.Active);
+        await overlay.Received(1).ApplyAsync(PowerOverlay.Recommended);
+        await overlay.DidNotReceive().ApplyAsync(PowerOverlay.BestPerformance);
     }
 
     [Fact]
-    public async Task RestoreSession_WritesRunMarker()
+    public async Task WritesRunMarkerBeforeApplying()
     {
         var store = FakeStore();
-        var mgr = new ModeManager(new[] { FakeMode(ProfileKind.Work) }, FakeConfig(ProfileKind.Work), store);
+        var overlay = Substitute.For<IPowerOverlayService>();
+        var engine = Build(ProfileKind.Work, overlay, store);
 
-        await mgr.RestoreSessionAsync();
+        await engine.RestoreSessionAsync();
 
-        await store.Received().SaveAsync(StateKeys.RunMarker, Arg.Any<object>());
-    }
-
-    [Fact]
-    public async Task RestoreSession_ResumingProfile_StillWritesRunMarker()
-    {
-        var store = FakeStore();
-        var mgr = new ModeManager(
-            new[] { FakeMode(ProfileKind.Work), FakeMode(ProfileKind.Gaming) },
-            FakeConfig(ProfileKind.Gaming), store);
-
-        await mgr.RestoreSessionAsync();
-
-        await store.Received().SaveAsync(StateKeys.RunMarker, Arg.Any<object>());
-        Assert.Equal(ProfileKind.Gaming, mgr.Active);
+        Received.InOrder(() =>
+        {
+            store.SaveAsync(StateKeys.RunMarker, Arg.Any<object>());
+            overlay.ApplyAsync(PowerOverlay.BestEfficiency);
+        });
     }
 
     [Fact]
     public void MarkCleanShutdown_ClearsRunMarker()
     {
         var store = FakeStore(StateKeys.RunMarker);
-        var mgr = new ModeManager(new[] { FakeMode(ProfileKind.Work) }, FakeConfig(ProfileKind.Work), store);
+        var engine = Build(ProfileKind.Work, Substitute.For<IPowerOverlayService>(), store);
 
-        mgr.MarkCleanShutdown();
+        engine.MarkCleanShutdown();
 
         store.Received(1).Clear(StateKeys.RunMarker);
     }

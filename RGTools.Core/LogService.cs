@@ -5,11 +5,12 @@ namespace RGTools.App.Core;
 
 public static class LogService
 {
-    private static readonly string LogDir = AppPaths.LogsDir;
+    // Resolved per call, not cached: AppPaths.OverrideRoot can redirect the tree after type init.
+    private static string LogDir => AppPaths.LogsDir;
 
-    private static readonly string LogPath = Path.Combine(LogDir, "rgtools.log");
-    private static readonly string BackupPath = Path.Combine(LogDir, "rgtools.bak");
-    private static readonly string CrashPath = Path.Combine(LogDir, "crash.log");
+    private static string LogPath => Path.Combine(LogDir, "rgtools.log");
+    private static string BackupPath => Path.Combine(LogDir, "rgtools.bak");
+    private static string CrashPath => Path.Combine(LogDir, "crash.log");
 
     private static readonly Lock _lockObj = new();
 

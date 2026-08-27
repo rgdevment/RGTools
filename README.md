@@ -1,7 +1,7 @@
 # RGTools — Optimizer & GameGuard
 
 Herramienta personal de bandeja (system tray) para Windows 11 que protege la privacidad del equipo
-personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gaming).
+personal frente al entorno corporativo y gestiona perfiles de uso (Equilibrado / Trabajo / Juego).
 
 > **.NET 10 · WPF · requiere Administrador.** App de un solo `.exe`, sin dependencias externas.
 
@@ -9,7 +9,7 @@ personal frente al entorno corporativo y gestiona perfiles de uso (Trabajo / Gam
 
 ## Instalación / Actualización
 
-1. Ejecuta **`RGTools-Setup-1.0.2.exe`** (carpeta `releases/`).
+1. Ejecuta el instalador más reciente de la carpeta `releases/`.
 2. Acepta el UAC (la app necesita privilegios de administrador).
 3. Al terminar, la app queda en la bandeja. El **inicio con Windows** se activa desde el dashboard
    (toggle *"Iniciar con Windows"*) — el instalador no lo gestiona, para tener una sola fuente de verdad.
@@ -33,15 +33,23 @@ Si no lo ves, está en los iconos ocultos (flecha `^`).
 
 ## Perfiles
 
-| Perfil | Acción |
-|---|---|
-| 💼 **Trabajo** | Estado base. Restaura todo lo que Gaming haya modificado y aplica el plan **RGTools Power Saver** (ahorro afinado): tope de CPU al 99% (Turbo Boost off → imperceptible en trabajo ligero, ahorra consumo y temperatura), boost eficiente, mínimo de CPU bajo, core parking moderado, PCI-E ASPM al máximo y apagado de disco a 10 min. **No** toca suspensión USB, sleep ni apagado de pantalla. |
-| 🎮 **Gaming** | Cierra Docker (servicio + backend)/WSL2/LM Studio/Slack/Discord/Spark/WhatsApp/qBittorrent · plan Ultimate Performance (con fallback) · silencia notificaciones de Windows · fuerza el refresh máximo del monitor · optimiza red (throttling/Nagle off) · GPU Priority (con tu permiso). **No** toca Teams/VS Code/navegador ni abre launchers de juego. |
-| ⚡ **Boost** | CPU al máximo sostenido para cargas pesadas por CPU (ej. encoding AV1 con SVT-AV1): plan Ultimate Performance (turbo full, sin core parking, CPU 100%). **No** cierra apps, no silencia notificaciones ni toca refresh/red/GPU — pensado para exprimir la CPU mientras sigues trabajando. Se revierte al volver a Trabajo. |
+Los tres perfiles se apoyan en el **Modo de energía** de Windows 11 (overlay), no en planes de
+energía propios: el plan base se deja siempre en *Equilibrado*, de modo que el selector de
+Configuración → Sistema → Energía sigue funcionando y refleja lo que hace RGTools.
 
-Todas las operaciones que tocan el sistema (registro, hosts, plan de energía, servicios) usan
-**snapshot → aplicar → restaurar** con escritura atómica. Si la app se cierra de forma forzada
-(crash, corte de luz), al volver a abrir **sanea el sistema automáticamente** al estado de Trabajo.
+| Perfil | Modo de energía | Qué hace |
+|---|---|---|
+| ⚖️ **Equilibrado** | Recomendado | Estado neutro: revierte todo lo que los otros perfiles hayan tocado y no modifica nada más. Es también el estado al que se vuelve tras un cierre inesperado. |
+| 💼 **Trabajo** | Máxima eficiencia | Solo baja el consumo. **No** cierra apps, no silencia notificaciones ni toca el registro. |
+| 🎮 **Juego** | Máximo rendimiento | Slack/Discord/WhatsApp/Spark/SearchIndexer pasan a **modo de eficiencia** (EcoQoS, reversible) · cierra Docker Desktop, WSL2, LM Studio y qBittorrent · silencia notificaciones · `SystemResponsiveness` y throttling de red para multimedia · GPU Priority con tu permiso. |
+
+Los perfiles son **idempotentes**: pulsar el perfil que ya está activo lo vuelve a aplicar. Es la
+forma de recuperar el estado si algo lo cambió por fuera — el dashboard avisa cuando detecta esa
+desincronización, y el chequeo de salud la comprueba cada 60 s.
+
+Todo lo que toca el sistema (registro, hosts, servicios) usa **snapshot → aplicar → restaurar** con
+escritura atómica. Si la app se cierra de forma forzada (crash, corte de luz), al volver a abrir
+**sanea el sistema automáticamente** dejándolo en Equilibrado.
 
 ---
 
@@ -50,16 +58,16 @@ Todas las operaciones que tocan el sistema (registro, hosts, plan de energía, s
 Solución de 3 proyectos (.NET 10):
 
 ```
-RGTools.Core    Librería: toda la lógica (servicios, modos, infraestructura)
+RGTools.Core    Librería: toda la lógica (servicios, perfiles, infraestructura)
 RGTools.App     App WPF de bandeja (composición DI con Generic Host)
-RGTools.Tests   xUnit + NSubstitute (33 tests)
+RGTools.Tests   xUnit + NSubstitute (69 tests)
 ```
 
 ### Compilar y testear
 
 ```powershell
 dotnet build  RGTools.slnx -c Debug      # compilar
-dotnet test   RGTools.slnx               # tests (33/33)
+dotnet test   RGTools.slnx               # tests (69/69)
 ```
 
 ### Generar una nueva versión (release)
@@ -90,7 +98,8 @@ Configuración, logs y estados de rollback: `%APPDATA%\RGTools\`.
 
 ## Limitaciones conocidas
 
-- Las apps cerradas por Gaming no se reabren solas al volver a Trabajo (se abren a mano).
+- Las apps que Juego cierra (Docker Desktop, LM Studio, qBittorrent) no se reabren solas; las que
+  pasan a modo de eficiencia sí se recuperan al salir del perfil.
 - Temperaturas de CPU/GPU no se monitorizan (Windows no las expone de forma fiable sin SDK extra).
 - Solo Windows 11 x64.
 

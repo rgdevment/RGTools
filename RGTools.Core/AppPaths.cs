@@ -4,19 +4,25 @@ namespace RGTools.App.Core;
 
 public static class AppPaths
 {
-    public static string Root { get; } = Path.Combine(
+    private static string _root = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "RGTools");
 
-    public static string ConfigFile { get; } = Path.Combine(Root, "config.json");
+    public static string Root => _root;
 
-    public static string LogsDir { get; } = Path.Combine(Root, "logs");
+    // Not a constant so a test run can redirect the whole tree; otherwise xUnit writes into the
+    // user's real %APPDATA%\RGTools and its mock exceptions land in the production crash log.
+    public static void OverrideRoot(string root) => _root = root;
 
-    public static string StatesDir { get; } = Path.Combine(Root, "states");
+    public static string ConfigFile => Path.Combine(_root, "config.json");
+
+    public static string LogsDir => Path.Combine(_root, "logs");
+
+    public static string StatesDir => Path.Combine(_root, "states");
 
     public static void EnsureCreated()
     {
-        Directory.CreateDirectory(Root);
+        Directory.CreateDirectory(_root);
         Directory.CreateDirectory(LogsDir);
         Directory.CreateDirectory(StatesDir);
     }
